@@ -14,7 +14,7 @@
     "infra:up": "docker compose -f infra/docker-compose.yml up -d postgres",
     "infra:media:up": "docker compose -f infra/docker-compose.yml --profile media up -d minio",
     "lint": "pnpm --filter @retail-starter/backend lint",
-    "test": "pnpm --filter @retail-starter/backend test",
+    "test": "pnpm --filter @retail-starter/backend test && pnpm --filter @retail-starter/storefront test",
     "typecheck": "pnpm --filter @retail-starter/backend typecheck && pnpm --filter @retail-starter/storefront typecheck"
   },
   "devDependencies": {

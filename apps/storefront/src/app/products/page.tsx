@@ -1,6 +1,5 @@
 import type { Metadata } from "next"
 import Link from "next/link"
-import { Suspense } from "react"
 
 import {
   getCalculatedPrice,
@@ -25,7 +24,9 @@ const inventoryLabels = {
   unavailable: "Availability unavailable",
 } as const
 
-export default function ProductsPage() {
+export default async function ProductsPage() {
+  const products = await listProducts()
+
   return (
     <main className="page-shell" aria-labelledby="products-title">
       <header className="page-heading">
@@ -34,20 +35,12 @@ export default function ProductsPage() {
         <p className="lede">Current product information from the commerce backend.</p>
       </header>
 
-      <Suspense fallback={<ProductsLoadingState />}>
-        <ProductList />
-      </Suspense>
+      <ProductList products={products} />
     </main>
   )
 }
 
-function ProductsLoadingState() {
-  return <p className="empty-state" aria-busy="true">Checking the current catalog.</p>
-}
-
-async function ProductList() {
-  const products = await listProducts()
-
+function ProductList({ products }: { products: Awaited<ReturnType<typeof listProducts>> }) {
   return (
     <>
       {products.length === 0 ? (

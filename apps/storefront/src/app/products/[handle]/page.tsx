@@ -1,10 +1,10 @@
 import type { Metadata } from "next"
 import { notFound } from "next/navigation"
 
+import { AddToCartForm } from "../../components/add-to-cart-form"
 import {
   getCalculatedPrice,
   getInventoryStatus,
-  getPrimaryVariant,
   getProductByHandle,
 } from "../../../lib/medusa/products"
 import { formatMoney } from "../../../lib/money"
@@ -53,7 +53,8 @@ export default async function ProductDetailPage({ params }: ProductPageProps) {
     notFound()
   }
 
-  const variant = getPrimaryVariant(product)
+  const variants = product.variants ?? []
+  const variant = variants.length === 1 ? variants[0] : undefined
   const price = getCalculatedPrice(variant)
   const inventoryStatus = getInventoryStatus(variant)
 
@@ -80,7 +81,11 @@ export default async function ProductDetailPage({ params }: ProductPageProps) {
         </p>
       </section>
 
-      {variant ? (
+      {variants.length > 1 ? (
+        <p className="empty-state">
+          This product has multiple variants. Variant selection will be added before it becomes purchasable.
+        </p>
+      ) : variant ? (
         <section className="variant-details" aria-labelledby="variant-title">
           <h2 id="variant-title">Variant</h2>
           <dl className="facts-list">
@@ -97,6 +102,13 @@ export default async function ProductDetailPage({ params }: ProductPageProps) {
               </div>
             ) : null}
           </dl>
+          {inventoryStatus === "in_stock" ? (
+            <AddToCartForm variantId={variant.id} />
+          ) : (
+            <p className="mutation-message mutation-message--error">
+              This item is not currently available to add to the cart.
+            </p>
+          )}
         </section>
       ) : (
         <p className="empty-state">Variant details are currently unavailable.</p>

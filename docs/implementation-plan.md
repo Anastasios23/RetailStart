@@ -579,6 +579,58 @@ The repository must now demonstrate `catalog → product → cart` locally with
 real Medusa persistence, public Store API calls, opaque cart continuity, and
 backend revalidation. This is the first user-visible vertical slice.
 
+### Phase 5 implementation evidence
+
+The Phase 5 guest-cart slice was implemented and exercised locally on
+2026-09-20 against Medusa 2.21.0, the development PostgreSQL database, and the
+existing development product fixture. Phase 5 remains intentionally
+uncommitted pending review.
+
+- Continuity uses one server-only session cookie named `retail_cart_id`. It is
+  an opaque Medusa cart reference only; it has `HttpOnly`, `SameSite=Lax`,
+  `Path=/`, no explicit domain, and no `Max-Age`/persistent lifetime. Local
+  HTTP uses `Secure=false`; production configuration uses `Secure=true`. No
+  cart contents, customer data, prices, totals, inventory, or browser-storage
+  copy is stored in the cookie. The browser-side audit could not read the
+  reference through `document.cookie`, consistent with the `HttpOnly` policy;
+  source audit found no `localStorage` or `sessionStorage` usage.
+- Cart creation is lazy: no cart is created by visiting `/cart`. The first
+  Add to Cart mutation calls `sdk.store.cart.create` with only the configured
+  `MEDUSA_REGION_ID` in the request body and requests `*items`; currency is
+  derived by Medusa from the region and no sales-channel ID is hard-coded.
+- The server-only Medusa boundary uses `retrieve`, `create`,
+  `createLineItem`, `updateLineItem`, and `deleteLineItem`. Server Actions
+  validate variant IDs, line-item IDs, and positive safe-integer quantities,
+  read the cart reference only from the HttpOnly cookie, and return safe
+  UI outcomes rather than raw SDK errors. No Next.js API/BFF route or direct
+  database access was added.
+- The browser milestone passed: `/products` → the development product → Add
+  to Cart → `/cart` → quantity `1` to `2` → remove. Add, read, update, remove,
+  and reload requests returned HTTP 200. The inventory-conflict update was
+  rejected by Medusa with HTTP 400 and the observed message
+  `Some variant does not have the required inventory`; the quantity remained
+  unchanged and the storefront showed recoverable feedback.
+- The authoritative cart response exposed `currency_code=eur`, product/line
+  title, `variant_title=Default variant`, `variant_sku=DEV-PHYSICAL-001`,
+  `quantity`, `unit_price`, line `total`/`item_total`, and cart `subtotal` and
+  `total`. The cart rendered these backend fields through the existing money
+  formatter and did not calculate authoritative totals in Next.js.
+- A controlled stale reference rendered a safe empty/unavailable cart without
+  reconstructing state. The next Add to Cart first received Medusa HTTP 404,
+  created a replacement cart, replaced the cookie, and completed the add.
+  With Medusa stopped, the same valid reference rendered a safe temporary
+  unavailability state rather than being treated as stale; after Medusa was
+  restarted with PostgreSQL retained, the cart and totals were available again.
+- Navigation away, refresh, a Next.js process restart, and a Medusa process
+  restart all preserved the cart through the browser cookie and PostgreSQL.
+  Persistent cross-session cart lifetime remains a later policy/UX decision.
+- Automated local tests cover cookie-option construction, identifier and
+  quantity validation, error classification, and safe action outcomes. The
+  real integration path exercised was Next.js → Medusa Store API → PostgreSQL;
+  no checkout, shipping, customer/contact, payment, order, reservation,
+  authentication, Redis, object storage, email, or custom cart workflow was
+  introduced.
+
 ## Phase 6 — Guest checkout foundation
 
 ### Objective
