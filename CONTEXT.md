@@ -72,9 +72,11 @@ V1 does not include dedicated reporting or analytics functionality. The admin in
 
 ## Current phase
 
-Phase 1 application scaffolding: the pnpm workspace, minimal Next.js
-storefront, and pinned Medusa backend baseline are installed. PostgreSQL,
-provider wiring, and commerce implementation remain deferred.
+Phase 2 local infrastructure: the pnpm workspace, minimal Next.js storefront,
+pinned Medusa backend baseline, isolated local PostgreSQL, optional local
+object storage reserved for the later media phase, and backend health/readiness
+foundations are installed. Provider wiring and commerce implementation remain
+deferred; the default runtime path uses PostgreSQL only.
 
 ## Deployment model
 

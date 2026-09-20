@@ -4,10 +4,12 @@ Reusable Retail E-commerce Starter for client businesses selling physical produc
 
 ## Current status
 
-Phase 1 application scaffolding is in place: a minimal Next.js storefront and
-the pinned Medusa backend baseline are installed in a pnpm workspace. Local
-PostgreSQL, provider wiring, and commerce implementation remain deferred to
-later phases.
+Phase 1 application scaffolding and the Phase 2 local infrastructure
+foundation are in place: a minimal Next.js storefront, the pinned Medusa
+backend baseline, isolated local PostgreSQL, optional local object storage for
+the later media phase, and backend health/readiness foundations are installed
+in a pnpm workspace. The default local runtime path uses PostgreSQL only.
+Provider wiring and commerce implementation remain deferred to later phases.
 
 ## Documentation
 

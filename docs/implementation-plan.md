@@ -222,11 +222,11 @@ classification, and durable shutdown.
 ### Concrete repository changes
 
 - Add the selected local PostgreSQL provisioning and reset/seed procedure.
-- Add the selected development object-storage strategy or a clearly bounded
-  local substitute that preserves the media authority contract.
+- Keep any local object-storage substitute optional and isolated until the
+  later media phase; do not add it to the backend runtime path.
 - Add isolated per-environment configuration templates and safe test fixtures.
-- Add backend liveness, readiness, and capability health foundations with
-  dependency classification.
+- Add backend liveness, readiness, and database capability health foundations
+  with dependency classification.
 - Add startup and shutdown hooks that do not silently discard durable work.
 
 ### Dependencies and prerequisites
@@ -236,10 +236,10 @@ classification, and durable shutdown.
 
 ### Acceptance criteria
 
-- A fresh local environment can provision isolated PostgreSQL and required
-  storage dependencies without shared client state.
-- Readiness distinguishes mandatory database failure from independently
-  recoverable provider capability failure.
+- A fresh local environment can provision isolated PostgreSQL without shared
+  client state.
+- Readiness distinguishes mandatory database failure from later optional
+  provider capabilities without making those providers mandatory.
 - Restart and graceful shutdown preserve the state needed for later recovery.
 - No local fixture or environment file contains a real credential.
 
@@ -252,6 +252,21 @@ classification, and durable shutdown.
   reclassified.
 - Isolation check proving one client configuration cannot address another
   client’s local resources.
+
+### Phase 2 local implementation
+
+Retail Starter local infrastructure is provisioned by the isolated Compose
+project at `infra/docker-compose.yml`. PostgreSQL 16 publishes host port
+`5433` to container port `5432`; the backend development URL is therefore
+`postgres://retail_starter:retail_starter_local@localhost:5433/retail_starter_dev`.
+The existing `erasmusjourney-postgres` container is outside this Compose
+project and is not stopped, modified, or reused. PostgreSQL is the default
+Phase 2 dependency. MinIO remains available only through the explicit
+`media` Compose profile as an optional local development environment reserved
+for the later media phase; it is not wired into Medusa or backend health,
+readiness, tests, or builds. The backend exposes separate liveness, readiness,
+and database capability health routes, and migrations remain an explicit
+`pnpm db:migrate` operation.
 
 ### Intentionally deferred
 

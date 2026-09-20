@@ -1,0 +1,38 @@
+name: retail-starter
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: retail-starter-postgres
+    environment:
+      POSTGRES_DB: retail_starter_dev
+      POSTGRES_USER: retail_starter
+      POSTGRES_PASSWORD: retail_starter_local
+    ports:
+      - "5433:5432"
+    volumes:
+      - retail-starter-postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U retail_starter -d retail_starter_dev"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  minio:
+    profiles:
+      - media
+    image: quay.io/minio/minio:RELEASE.2024-12-18T13-15-44Z
+    container_name: retail-starter-minio
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: retail_starter_local
+      MINIO_ROOT_PASSWORD: retail_starter_local_secret
+    ports:
+      - "9003:9000"
+      - "9002:9001"
+    volumes:
+      - retail-starter-minio-data:/data
+
+volumes:
+  retail-starter-postgres-data:
+  retail-starter-minio-data:
