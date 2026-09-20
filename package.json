@@ -1,0 +1,19 @@
+{
+  "name": "retail-starter",
+  "private": true,
+  "packageManager": "pnpm@10.11.1",
+  "engines": {
+    "node": ">=22.12.0 <23"
+  },
+  "scripts": {
+    "build": "pnpm --filter @retail-starter/backend build && pnpm --filter @retail-starter/storefront build",
+    "dev": "pnpm --parallel --filter @retail-starter/backend --filter @retail-starter/storefront dev",
+    "lint": "pnpm --filter @retail-starter/backend lint",
+    "typecheck": "pnpm --filter @retail-starter/backend typecheck && pnpm --filter @retail-starter/storefront typecheck"
+  },
+  "devDependencies": {
+    "@medusajs/eslint-plugin": "2.21.0",
+    "eslint": "9.39.5",
+    "jiti": "2.7.0"
+  }
+}

@@ -1,0 +1,27 @@
+:root {
+  color-scheme: light;
+  font-family: system-ui, sans-serif;
+  background: #ffffff;
+  color: #171717;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+}
+
+main {
+  display: grid;
+  gap: 0.75rem;
+  min-height: 100vh;
+  place-content: center;
+  padding: 2rem;
+}
+
+h1,
+p {
+  margin: 0;
+}

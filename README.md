@@ -4,7 +4,10 @@ Reusable Retail E-commerce Starter for client businesses selling physical produc
 
 ## Current status
 
-This project is in the documentation phase. No application code, dependencies, or implementation configuration has been created.
+Phase 1 application scaffolding is in place: a minimal Next.js storefront and
+the pinned Medusa backend baseline are installed in a pnpm workspace. Local
+PostgreSQL, provider wiring, and commerce implementation remain deferred to
+later phases.
 
 ## Documentation
 
@@ -19,4 +22,8 @@ This project is in the documentation phase. No application code, dependencies, o
 
 The accepted V1 architecture uses one repository with a Next.js storefront and a Medusa commerce backend, one dedicated PostgreSQL database and isolated object storage per client, and backend-owned adapters for Stripe, email, and other external providers. Cloudflare may be used where useful for DNS, CDN, frontend or media delivery, or edge security; core commerce behavior does not depend on it.
 
-Implementation has not started. Exact versions, package-manager and runtime choices, local infrastructure, hosting topology, provider wiring, and other implementation details remain deferred within the boundaries documented in the architecture baseline.
+The Phase 1 compatibility baseline uses Node.js 22.23.2, pnpm 10.11.1,
+Medusa 2.21.0, Next.js 15.5.24, and React/React DOM 19.0.5. Local
+infrastructure, hosting topology, provider wiring, and commerce implementation
+details remain deferred within the boundaries documented in the architecture
+baseline.

@@ -1,0 +1,14 @@
+node_modules/
+.pnpm-store/
+
+# Generated application output
+apps/**/.next/
+apps/backend/.medusa/
+apps/**/coverage/
+**/*.tsbuildinfo
+
+# Local environment files; committed templates remain tracked.
+.env
+.env.*
+!.env.example
+!.env.template

@@ -1,0 +1,7 @@
+packages:
+  - "apps/**"
+  - "!apps/backend/.medusa/**"
+
+# pnpm 10.x compatibility for Medusa's required build dependency.
+onlyBuiltDependencies:
+  - "@medusajs/telemetry"

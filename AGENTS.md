@@ -20,19 +20,20 @@
 
 ## Current project state
 
-- Documentation only; implementation has not started.
-- Package manager, commands, dependency versions, and toolchain: `TBD`.
-- Do not add application dependencies or framework, database, payment, or deployment configuration until decided and requested.
+- Phase 1 application scaffolding is present under `apps/backend` and `apps/storefront`.
+- The workspace uses pnpm `10.11.1` and Node.js `22.23.2`; package versions and commands are recorded in the manifests and implementation plan.
+- PostgreSQL, payment, email, object-storage, deployment, and other provider configuration remain deferred until the relevant phase is approved.
 
 ## Package Manager
 
-`TBD` — no package manager has been selected and no dependencies are installed.
+`pnpm@10.11.1` from the repository root.
 
 ## File-Scoped Commands
 
-`TBD` — implementation tooling has not been selected.
+Use the root workspace scripts and package-local scripts documented in the
+manifests; Phase 1 validation uses `pnpm install`, `pnpm typecheck`, and
+`pnpm build`.
 
 ## Commit Attribution
 
 `TBD` — no project-specific commit attribution convention has been decided.
-

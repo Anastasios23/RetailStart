@@ -72,7 +72,9 @@ V1 does not include dedicated reporting or analytics functionality. The admin in
 
 ## Current phase
 
-Documentation and scope organization before implementation. Application dependencies and runtime configuration have not been selected or installed.
+Phase 1 application scaffolding: the pnpm workspace, minimal Next.js
+storefront, and pinned Medusa backend baseline are installed. PostgreSQL,
+provider wiring, and commerce implementation remain deferred.
 
 ## Deployment model
 
@@ -93,7 +95,7 @@ The storefront uses a thin typed public Store API boundary. It does not expose p
 
 The following remain implementation or deployment follow-ups rather than unresolved architecture boundaries:
 
-- exact framework, Medusa, runtime, SDK, package-manager, and dependency versions;
+- the Medusa SDK and any other Store API integration dependencies;
 - local PostgreSQL, object-storage, email, observability, hosting, and deployment choices;
 - the selected Medusa-version checkout/payment/reservation lifecycle sequence;
 - implementation-specific modules, workflows, adapters, endpoint shapes, persistence layout, serialization, and test tooling;

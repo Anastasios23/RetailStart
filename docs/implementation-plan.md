@@ -105,6 +105,21 @@ committed lockfile and the relevant verification gate.
 This gate records the implementation choice only; it does not authorize
 application scaffolding or dependency installation by itself.
 
+### Phase 1 scaffolding implementation choice
+
+Phase 1 uses Approach B: a supported Medusa backend scaffold paired with a
+minimal Next.js storefront. The backend is imported from the pinned Medusa
+2.21.0 reference scaffold, while the storefront starts as a minimal Next.js
+15.5.24 App Router application using React and React DOM 19.0.5. The full
+Medusa DTC storefront remains reference material only and is not imported.
+
+The repository uses pnpm workspaces initially. Turbo is intentionally excluded
+until workspace task orchestration or caching is justified by implementation
+evidence. No `packages/` directory is created until a real shared package has
+an approved cross-application use case. Phase 1 contains only the two
+applications; it does not add a BFF, worker application, webhook gateway, or
+separate admin application.
+
 ## Dependency map and milestones
 
 The critical dependency chain is:
