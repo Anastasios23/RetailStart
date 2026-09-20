@@ -334,6 +334,59 @@ customization, and shared domain pathways for Admin and automation.
 - Checkout/payment/reservation ordering beyond the verified baseline needed
   by the next phases.
 
+### Phase 3 implementation evidence
+
+Verified locally on 2026-09-20 against the Medusa 2.21.0 backend, PostgreSQL,
+and native Medusa Admin. The local database was inspected before mutation. It
+already contained the `Medusa Store` record, one EUR currency, one enabled
+`Default Sales Channel`, one active default publishable API key already scoped
+to that sales channel, and the built-in `Manual` fulfillment provider. It had
+no region, stock location, tax region, shipping option type, service zone,
+shipping option, or product. The suitable default sales channel and
+publishable key were reused rather than duplicated.
+
+The local commerce baseline was configured through Medusa Admin:
+
+- The reused sales channel was renamed `Development Web Store` (`sc_01M2Z57MFRYW86MF0Q0YXDB901`) and kept enabled.
+- The region `Development Cyprus Region` (`reg_01M2ZDEB8NDDYRJMDA86HMG545`) uses EUR and country CY. Store defaults now point to this region, the development sales channel, and the development stock location.
+- `Development Warehouse` (`sloc_01M2ZDHM6931Q1VJ8BA80ZVDQR`) is in Cyprus, is connected to the sales channel, and is the only stock location in the fixture.
+- The native `Manual` fulfillment provider is connected to the stock location. Shipping is enabled with `Development Cyprus Shipping Zone`, one `Development Standard Delivery` fixed option priced at EUR 5.00 in the default shipping profile, and one required `Development Delivery` option type. The option is enabled for storefront use.
+- The tax fixture is the system tax provider for Cyprus with `Development Tax Rate` at 19.00%. This is development-only fixture data and is not a statement of the client's legal tax obligation or production tax configuration.
+- The reused publishable key is titled `Development Storefront` (`apk_01M2Z57N1XS7AXD8KSCPVJBTSX` in local Admin evidence); its token is intentionally omitted here and it is scoped to exactly the `Development Web Store` channel. No secret/admin key was used for Store API verification.
+- The published product is `Development Physical Goods Test Product` (`prod_01M2ZDX09C2DVTPASCCQ9ZDE1J`) with one `Default variant` (`variant_01M2ZDX0DWEPJK5HJASQKQHN81`), SKU `DEV-PHYSICAL-001`, EUR 25.00 pricing for the development region, the default shipping profile, managed inventory enabled, and availability in the one development sales channel.
+- The variant's inventory item (`iitem_01M2ZDX0EMWQMX4AGF059VE5PR`) is stocked at the development warehouse with a retained finite quantity of 7. The product is published; no media, catalog seed, promotion, customer account, or second variant was added.
+
+Store API evidence used a raw HTTP request with the explicit region and sales
+channel context. The request without `x-publishable-api-key` returned HTTP 400
+`not_allowed` with the message that a publishable key is required. The same
+`GET /store/products` request with the redacted local publishable key returned
+HTTP 200, one product, the expected published product and variant, `eur`
+currency, a backend-calculated amount of 25, `manage_inventory: true`, and
+`inventory_quantity: 7`. Medusa's Store API projected the aggregate inventory
+for the channel; the Admin record independently showed that the quantity came
+from the one sales-channel-linked warehouse.
+
+The authority propagation check changed the warehouse quantity through Admin
+from 7 to 5. The next keyed Store API read returned `inventory_quantity: 5`.
+Admin then restored the retained fixture value to 7, and a final keyed read
+returned 7 and EUR 25. This demonstrates `Admin mutation -> Medusa/PostgreSQL
+authority -> Store API projection` without storefront state or a cache.
+
+The database initially had no admin user despite the expected Phase 2
+prerequisite. A supported `medusa user` bootstrap command was therefore used
+only to create local Admin access; no commerce data was created by the command,
+no direct SQL write was used, and all commerce mutations above were performed
+in Admin. The first generated local bootstrap account's password was not
+persisted, so a second known local development admin was created to continue
+the verification. This is a local-environment cleanup item, not a committed
+application or commerce fixture.
+
+No repository seed, custom module, workflow, mutation route, import path,
+Medusa SDK, Stripe, email, Redis, object-storage, carrier/live-rate, external
+tax, search, customer-account, worker, webhook, BFF, or storefront catalog
+integration was introduced. The SDK and all storefront Store API work remain
+intentionally deferred to Phase 4.
+
 ## Phase 4 — First storefront catalog vertical slice
 
 ### Objective
