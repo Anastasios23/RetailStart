@@ -108,6 +108,12 @@ importers:
 
   apps/storefront:
     dependencies:
+      '@medusajs/js-sdk':
+        specifier: 2.21.0
+        version: 2.21.0
+      '@medusajs/types':
+        specifier: 2.21.0
+        version: 2.21.0(ioredis@5.11.1)(vite@7.3.6(@types/node@17.0.21)(jiti@2.7.0)(yaml@2.9.1))
       next:
         specifier: 15.5.24
         version: 15.5.24(@opentelemetry/api@1.9.1)(@types/node@17.0.21)(react-dom@19.0.5(react@19.0.5))(react@19.0.5)
@@ -8627,6 +8633,13 @@ snapshots:
     dependencies:
       '@medusajs/framework': 2.21.0(@medusajs/cli@2.21.0(@types/node@20.19.43))(@types/node@20.19.43)(ioredis@5.11.1)(vite@7.3.6(@types/node@20.19.43)(jiti@1.21.7)(yaml@2.9.1))(zod@4.2.0)
 
+  '@medusajs/types@2.21.0(ioredis@5.11.1)(vite@7.3.6(@types/node@17.0.21)(jiti@2.7.0)(yaml@2.9.1))':
+    dependencies:
+      bignumber.js: 9.3.1
+    optionalDependencies:
+      ioredis: 5.11.1
+      vite: 7.3.6(@types/node@17.0.21)(jiti@2.7.0)(yaml@2.9.1)
+
   '@medusajs/types@2.21.0(ioredis@5.11.1)(vite@7.3.6(@types/node@20.19.43)(jiti@1.21.7)(yaml@2.9.1))':
     dependencies:
       bignumber.js: 9.3.1
@@ -13920,6 +13933,21 @@ snapshots:
       convert-source-map: 2.0.0
 
   vary@1.1.2: {}
+
+  vite@7.3.6(@types/node@17.0.21)(jiti@2.7.0)(yaml@2.9.1):
+    dependencies:
+      esbuild: 0.28.2
+      fdir: 6.5.0(picomatch@4.0.7)
+      picomatch: 4.0.7
+      postcss: 8.5.28
+      rollup: 4.63.4
+      tinyglobby: 0.2.17
+    optionalDependencies:
+      '@types/node': 17.0.21
+      fsevents: 2.3.3
+      jiti: 2.7.0
+      yaml: 2.9.1
+    optional: true
 
   vite@7.3.6(@types/node@20.19.43)(jiti@1.21.7)(yaml@2.9.1):
     dependencies:

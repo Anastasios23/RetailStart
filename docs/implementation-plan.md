@@ -445,6 +445,81 @@ presentation content.
 - Full branding/content bundle and client media workflow.
 - Checkout interactions and guest cart state.
 
+### Phase 4 implementation evidence
+
+The first storefront vertical slice was implemented on 2026-09-20 with the
+approved server-first boundary. The storefront uses
+`@medusajs/js-sdk@2.21.0` and `@medusajs/types@2.21.0` only in
+`apps/storefront`. `src/lib/medusa/client.ts` validates the four required
+server-side environment variables and creates the single SDK client with the
+Medusa backend URL and publishable key. No admin/secret credential, database
+connection, BFF, browser Store API client, or authentication configuration was
+added.
+
+The local environment uses `MEDUSA_BACKEND_URL`,
+`MEDUSA_PUBLISHABLE_KEY`, `MEDUSA_REGION_ID`, and `MEDUSA_COUNTRY_CODE` in the
+ignored `apps/storefront/.env.local`; the committed `.env.example` contains
+placeholders only. Product reads in `src/lib/medusa/products.ts` always pass
+the configured region and country context and request
+`*variants.calculated_price,+variants.inventory_quantity`. Reads use fresh
+server rendering (`dynamic = "force-dynamic"`); no persistent Store API cache,
+TTL, or revalidation layer was introduced.
+
+The observed 2.21.0 Store API response for the existing development product
+was:
+
+- handle `development-physical-goods-test-product`;
+- one variant, SKU `DEV-PHYSICAL-001`, with `manage_inventory: true`;
+- `calculated_price.calculated_amount: 25` and
+  `calculated_price.currency_code: "eur"`;
+- `calculated_price.raw_calculated_amount.value: "25"` with precision `20`;
+- no `calculated_amount_with_tax` field in this configured response; and
+- `inventory_quantity: 7`.
+
+The formatter passes the backend numeric amount and explicit currency code
+directly to `Intl.NumberFormat` with no cents, tax, discount, or FX arithmetic.
+If Medusa supplies `calculated_amount_with_tax`, that backend value is used;
+otherwise the returned calculated amount is displayed only when it is valid.
+
+Implemented routes and presentation behavior:
+
+- `/products` is a React Server Component route with title, subtitle, backend
+  calculated price, inventory state, and keyboard-accessible links.
+- `/products/[handle]` retrieves by the supported Store API handle filter and
+  shows title, optional description, the current fixture variant/SKU, price,
+  and inventory state. It has no quantity control, cart, checkout, account,
+  payment, or customer-session behavior.
+- Missing prices render `Price unavailable`; missing inventory renders
+  `Availability unavailable`; unavailable Store API/configuration failures use
+  a customer-safe error boundary with safe diagnostic logging.
+- Next metadata is defined for the catalog and generated from authoritative
+  product presentation data for detail pages. Missing products receive
+  `noindex` metadata and the route returns Next not-found behavior.
+- The shell navigation contains only Home and Products.
+
+Runtime evidence from the local production `next start` server on 2026-09-20:
+
+- `/` -> HTTP 200;
+- `/products` -> HTTP 200, rendered the product title, `€25.00`, and `In
+  stock`;
+- `/products/development-physical-goods-test-product` -> HTTP 200, rendered
+  the product title, `€25.00`, SKU, and `In stock`;
+- `/products/not-a-real-product` -> HTTP 404 with the safe not-found page; and
+- rendered HTML did not expose the publishable token or backend URL.
+
+The authority propagation check used Medusa native Admin to change the linked
+development warehouse quantity from 7 to 0. The next keyed Store API read
+returned `inventory_quantity: 0`, and a refreshed product-detail request
+rendered `Out of stock`. Admin then restored the quantity to 7, and a final
+keyed Store API read returned 7. No manual cache purge was required. An Admin
+price mutation was not run in this slice; the price read and rendering path
+were verified against the existing EUR 25 response.
+
+The Phase 4 slice intentionally does not add category/search routes, full
+structured product markup, sitemap/robots automation, media integration,
+cache revalidation, or any Phase 5 guest-cart behavior. Those remain outside
+this first catalog/product-detail implementation boundary.
+
 ## Phase 5 — Guest cart
 
 ### Objective

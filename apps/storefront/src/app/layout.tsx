@@ -1,9 +1,14 @@
 import type { Metadata } from "next"
+
+import { SiteHeader } from "./components/site-header"
 import "./globals.css"
 
 export const metadata: Metadata = {
-  title: "Retail Starter",
-  description: "Retail Starter storefront shell",
+  title: {
+    default: "Retail Starter",
+    template: "%s | Retail Starter",
+  },
+  description: "A server-rendered product catalog powered by Medusa.",
 }
 
 export default function RootLayout({
@@ -13,7 +18,10 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body>{children}</body>
+      <body>
+        <SiteHeader />
+        {children}
+      </body>
     </html>
   )
 }

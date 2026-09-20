@@ -10,6 +10,8 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@medusajs/js-sdk": "2.21.0",
+    "@medusajs/types": "2.21.0",
     "next": "15.5.24",
     "react": "19.0.5",
     "react-dom": "19.0.5"
