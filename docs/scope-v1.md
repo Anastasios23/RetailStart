@@ -435,7 +435,7 @@ For order, payment, refund, inventory, and notification events, V1 must provide:
 - Admin-visible operational status where necessary for daily operation
 - A clear mechanism for identifying critical failures through alerts or another suitable process
 
-The specific monitoring or logging stack and alert thresholds are not defined yet and will be decided during the architecture phase.
+The specific monitoring or logging stack and alert thresholds are not defined yet and will be selected during implementation and deployment planning within the accepted architecture boundaries.
 
 ### Maintainability
 
