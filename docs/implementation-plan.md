@@ -693,6 +693,131 @@ configured shipping/tax, and guest-only access.
   Phase 7 responsibilities.
 - Final client shipping/tax policy and lifecycle policy.
 
+### Phase 6 implementation evidence
+
+The Phase 6 guest-checkout foundation is implemented in the storefront working
+tree on 2026-09-21 and remains intentionally uncommitted pending review and
+the full verification gate. The runtime evidence below was collected against
+the local Medusa 2.21.0 fixture with PostgreSQL running on host port 5433.
+
+- `/checkout` is a force-dynamic, server-first route. It reads the existing
+  `retail_cart_id` HttpOnly cookie, retrieves the authoritative cart, redirects
+  missing, stale, or empty carts to `/cart`, and shows a recoverable state when
+  Medusa is unavailable. Visiting the route never creates a cart.
+- The checkout collects only email, first name, last name, address line 1,
+  city, postal code, and country. It does not collect phone, company, date of
+  birth, marketing consent, password, address line 2, or province. Form values
+  are not written to localStorage or sessionStorage.
+- Server-side validation trims obvious whitespace, bounds each field, checks a
+  syntactically valid email, and accepts a country only after retrieving the
+  current cart region through `sdk.store.region.retrieve(regionId, { fields:
+  "id,*countries" })`. The submitted country is compared with those region
+  countries and sent to Medusa only after validation; no universal `CY` rule is
+  hard-coded.
+- Contact/address persistence uses the installed `@medusajs/js-sdk@2.21.0`
+  signature `sdk.store.cart.update(cartId, body, query)`. The body sends the
+  validated email and the same validated address object as both
+  `shipping_address` and `billing_address`. The cart ID is read only from the
+  HttpOnly cookie and never from FormData.
+- Shipping retrieval uses the installed signature
+  `sdk.store.fulfillment.listCartOptions({ cart_id: cartId })`. The selected
+  option ID is checked against a fresh cart-scoped list before the installed
+  `sdk.store.cart.addShippingMethod(cartId, { option_id }, query)` operation is
+  called. Next.js never submits an authoritative shipping amount.
+- The UI renders only Medusa-returned shipping options and cart monetary fields.
+  It reads item subtotal/tax/total, shipping subtotal/tax/total, cart subtotal,
+  cart tax total, cart total, selected shipping method, and explicit currency;
+  it performs no shipping, tax, or total arithmetic. A missing required value
+  renders an unavailable state.
+- Same-origin Next.js Server Actions remain the mutation boundary. No broad
+  `allowedOrigins` configuration, custom CSRF token, payment collection,
+  payment session, provider listing, cart completion, order creation, customer
+  account, or custom checkout backend workflow was introduced.
+- Focused automated tests cover contact/address validation, region-country
+  rejection, safe error mapping, stored-address completeness, authoritative
+  presentation states, and required monetary-field checks. The browser runtime
+  also exposed a client-side invalid-field recursion: the invalid event handler
+  now reads `field.validity.valid` instead of calling `checkValidity()` again.
+  Empty-country submission is consequently blocked by native required-field
+  validation without a render-loop error.
+
+### Phase 6 local runtime verification
+
+The following evidence was collected on 2026-09-21 using the repository's
+Node.js 22.23.2 and pnpm 10.11.1 shim. Only the PostgreSQL container was
+started by `pnpm infra:up`; MinIO and Redis were not started. Medusa used its
+documented local in-memory fallback for Redis because no `redisUrl` was
+configured.
+
+- PostgreSQL became healthy on `localhost:5433`. Medusa started on port 9000;
+  `/health`, `/health/liveness`, `/health/readiness`, and `/app` returned 200.
+  Readiness reported both configuration and database checks as available.
+- The Admin UI showed the existing published development product, EUR/CY
+  region, one managed-inventory variant (`DEV-PHYSICAL-001`), and the existing
+  development shipping configuration. No fixture was reseeded and no
+  production or external account was used.
+- A fresh browser session followed `/products` → product detail → `Add to cart`
+  → `/cart`. The resulting cart had one line at quantity 1 and €25.00 item
+  pricing. Opening `/checkout` showed EUR, item subtotal €25.00, shipping
+  €0.00, tax €0.00, subtotal €25.00, and total €25.00 before contact and
+  shipping selection.
+- A synthetic guest contact and Cyprus address were saved through the normal
+  checkout form. The Medusa cart persisted the email and wrote the same
+  validated address to both shipping and billing. No customer account was
+  created.
+- The cart-scoped Medusa shipping list returned one configured option,
+  `Development Standard Delivery`, with response `amount: 5`, provider
+  `manual_manual`, and the configured `Development Delivery` type. The option
+  response omitted a currency code; the cart's EUR context and the persisted
+  shipping method reported €5.00. Saving it through the checkout form
+  persisted the selected method and returned authoritative totals of item
+  subtotal €25.00, shipping €5.00, tax €0.00, subtotal €30.00, and total
+  €30.00 in EUR. The configured region reported automatic taxes disabled, so
+  the observed tax amount is recorded as Medusa's local fixture result, not as
+  a general tax-policy claim.
+- Selecting the empty country option was rejected by the browser's required
+  validation and did not mutate the cart. A direct Store API attempt with the
+  unsupported `US` country was rejected with HTTP 400 because it is outside
+  the Development Cyprus Region; the original CY address and €30.00 total
+  remained unchanged. The focused test suite also covers this region-country
+  rejection.
+- Changing the valid city to Limassol and saving, then restoring Nicosia,
+  persisted through both address fields. The single configured shipping rate,
+  tax, and total remained €5.00, €0.00, and €30.00 respectively.
+- A direct Store API attempt to add a deliberately invalid shipping option was
+  rejected with HTTP 400 (`Shipping Options are invalid for cart.`). The cart
+  retained one valid shipping method, quantity 1, and total €30.00.
+- For controlled repricing, the Admin region-specific EUR price was changed
+  from €25.00 to €27.00 and then restored to €25.00. Product retrieval reflected
+  the changed price, but cart retrieval and address saving retained the current
+  €25.00 line until the normal cart quantity-update operation ran. That
+  explicit Medusa cart operation refreshed the line to €27.00 and total to
+  €32.00, after which the price was restored and the cart was revalidated back
+  to €25.00 and €30.00. Next.js performed no monetary arithmetic.
+- Admin inventory was set to zero for the managed variant. A normal cart update
+  request for quantity 2 was rejected by Medusa; the UI reported that the
+  quantity was unavailable and the cart remained at quantity 1 and total
+  €30.00. Inventory was restored to 7 in Admin and confirmed in the Admin
+  detail view.
+- With Medusa stopped, a normal checkout mutation rendered the recoverable
+  message `The checkout service is temporarily unavailable. Please try again.`
+  No false success or local checkout authority was created. After Medusa was
+  restarted, health, liveness, and readiness returned 200 and the cart,
+  address, shipping method, and €30.00 total were still present.
+- After restarting the storefront as well, a fresh checkout reload recovered
+  the same guest cart state. Browser evaluation exposed no localStorage or
+  sessionStorage entries and no script-visible cookie. The repository contains
+  no localStorage/sessionStorage checkout writes; cart identity remains in the
+  server-managed `retail_cart_id` cookie.
+- The database contained zero orders after the flow. No payment provider,
+  payment session, reservation, cart completion, or order creation was
+  introduced; those remain Phase 7 responsibilities.
+
+This is direct local `Next.js → Medusa Store API → PostgreSQL` runtime evidence
+for the exercised Phase 6 foundation. It does not authorize Phase 7, and the
+remaining acceptance decision is recorded with the complete repository
+lint/typecheck/test/build gate reported for this verification run.
+
 ## Phase 7 — Stripe payment and authoritative order completion
 
 ### Objective
