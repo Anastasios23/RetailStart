@@ -23,6 +23,11 @@ import {
   deriveCheckoutProgress,
   hasCurrentCheckoutTotals,
 } from "../../lib/medusa/checkout-presentation"
+import { StripePaymentForm } from "./stripe-payment-form"
+import type {
+  CheckoutPaymentIssue,
+  CheckoutPaymentProjection,
+} from "../../lib/medusa/checkout-payment"
 import { formatMoney } from "../../lib/money"
 
 type CheckoutFormProps = {
@@ -30,6 +35,10 @@ type CheckoutFormProps = {
   countries: CheckoutCountry[]
   shippingOptions: HttpTypes.StoreCartShippingOptionWithServiceZone[]
   shippingOptionsUnavailable: boolean
+  payment: CheckoutPaymentProjection | null
+  paymentUnavailable: boolean
+  paymentIssue: CheckoutPaymentIssue | null
+  publishableKey: string | null
 }
 
 type FieldElement = HTMLInputElement | HTMLSelectElement
@@ -237,6 +246,10 @@ export function CheckoutForm({
   countries,
   shippingOptions,
   shippingOptionsUnavailable,
+  payment,
+  paymentUnavailable,
+  paymentIssue,
+  publishableKey,
 }: CheckoutFormProps) {
   const router = useRouter()
   const [state, formAction, pending] = useActionState(
@@ -324,7 +337,7 @@ export function CheckoutForm({
           <p className="eyebrow">Guest checkout</p>
           <h1 id="checkout-title">Delivery details</h1>
           <p className="lede">
-            Enter the minimum details needed to prepare this physical-goods cart. Payment is deferred to the next phase.
+            Enter your contact and delivery details, choose shipping, then pay securely through Stripe.
           </p>
         </header>
 
@@ -335,7 +348,7 @@ export function CheckoutForm({
               ? "Choose a shipping method to continue."
               : progress === "totals_unavailable"
                 ? "Current checkout totals are unavailable."
-                : "Ready for payment in the next phase."}
+                : "Ready for secure payment."}
         </p>
 
         <section className="checkout-section" aria-labelledby="contact-title">
@@ -474,9 +487,37 @@ export function CheckoutForm({
           />
         ) : null}
 
-        <p className="checkout-deferred">
-          Payment is the next step. No payment provider, payment session, place-order action, or order creation is available in this phase.
-        </p>
+        {progress === "ready_for_payment" && payment ? (
+          <StripePaymentForm payment={payment} publishableKey={publishableKey} />
+        ) : null}
+
+        {progress === "ready_for_payment" && paymentIssue ? (
+          <section className="checkout-section" aria-labelledby="payment-status-title">
+            <h2 id="payment-status-title">Payment status</h2>
+            <p className="checkout-message checkout-message--error" role="alert">
+              {paymentIssue === "pending_authorization"
+                ? "Payment is awaiting provider authorization. Refresh checkout to reconcile it; do not enter payment details again."
+                : paymentIssue === "error"
+                  ? "The current payment session failed. Refresh checkout to recover it before trying again."
+                  : `Medusa reports this payment as ${paymentIssue}. Refresh checkout to reconcile it before trying again.`}
+            </p>
+            <Link className="button-link button-link--secondary" href="/checkout">
+              Refresh checkout
+            </Link>
+          </section>
+        ) : null}
+
+        {progress === "ready_for_payment" && !payment && !paymentIssue && paymentUnavailable ? (
+          <section className="checkout-section" aria-labelledby="payment-unavailable-title">
+            <h2 id="payment-unavailable-title">Payment temporarily unavailable</h2>
+            <p className="checkout-message checkout-message--error" role="alert">
+              Stripe payment could not be prepared. Your cart remains available; refresh checkout to try again.
+            </p>
+            <Link className="button-link button-link--secondary" href="/checkout">
+              Refresh checkout
+            </Link>
+          </section>
+        ) : null}
       </div>
       <CheckoutSummary cart={cart} />
     </div>

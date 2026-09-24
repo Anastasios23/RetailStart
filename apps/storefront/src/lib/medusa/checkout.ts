@@ -7,9 +7,19 @@ import {
   isStaleCheckoutReferenceError,
   logCheckoutFailure,
 } from "./checkout-errors"
+import {
+  classifyStripePaymentSession,
+  projectStripePaymentSession,
+  STRIPE_PROVIDER_ID,
+  type CheckoutPaymentIssue,
+  type CheckoutPaymentProjection,
+  type CheckoutConfirmation,
+  projectCheckoutConfirmation,
+} from "./checkout-payment"
+import { hasStoredCheckoutContact } from "./checkout-validation"
 import { getMedusaClient } from "./client"
 
-export const checkoutCartFields = "*items,*shipping_methods"
+export const checkoutCartFields = "*items,*shipping_methods,*payment_collection,*payment_collection.payment_sessions,completed_at"
 
 export type CheckoutCountry = {
   code: string
@@ -19,12 +29,18 @@ export type CheckoutCountry = {
 export type CheckoutPageData =
   | { kind: "redirect" }
   | { kind: "unavailable" }
+  | { kind: "reconciliation-unavailable" }
+  | { kind: "confirmation"; confirmation: CheckoutConfirmation }
   | {
       kind: "available"
       cart: HttpTypes.StoreCart
       countries: CheckoutCountry[]
       shippingOptions: HttpTypes.StoreCartShippingOptionWithServiceZone[]
       shippingOptionsUnavailable: boolean
+      payment: CheckoutPaymentProjection | null
+      paymentUnavailable: boolean
+      paymentIssue: CheckoutPaymentIssue | null
+      publishableKey: string | null
     }
 
 export async function retrieveCheckoutCart(cartId: string): Promise<HttpTypes.StoreCart> {
@@ -76,6 +92,70 @@ export async function getAvailableShippingOptions(
   return response.shipping_options
 }
 
+function hasPaymentPrerequisites(cart: HttpTypes.StoreCart): boolean {
+  return Boolean(
+    cart.email &&
+      hasStoredCheckoutContact(cart.email, cart.shipping_address) &&
+      hasStoredCheckoutContact(cart.email, cart.billing_address) &&
+      cart.shipping_methods?.length
+  )
+}
+
+export async function initializeStripePaymentSession(
+  cart: HttpTypes.StoreCart
+): Promise<
+  | { kind: "ready"; payment: CheckoutPaymentProjection }
+  | { kind: "reconcile"; status: CheckoutPaymentIssue }
+  | { kind: "failed"; status: "error" }
+> {
+  if (!cart.region_id || !hasPaymentPrerequisites(cart)) {
+    throw new Error("Checkout payment prerequisites are incomplete")
+  }
+
+  const client = getMedusaClient()
+  const response = await client.client.fetch<{
+    state: "ready" | "reconcile" | "failed"
+    issue?: CheckoutPaymentIssue
+    payment: {
+      paymentCollectionId: string
+      paymentCollectionStatus: string
+      paymentSessionId: string
+      providerId: typeof STRIPE_PROVIDER_ID
+      sessionStatus: string
+      amount: number
+      currencyCode: string
+      clientSecret?: string
+    } | null
+  }>(`/store/carts/${encodeURIComponent(cart.id)}/payment-session`, {
+    method: "POST",
+    body: { provider_id: STRIPE_PROVIDER_ID },
+  })
+
+  if (response.state === "ready" && response.payment?.clientSecret) {
+    return {
+      kind: "ready",
+      payment: {
+        paymentCollectionId: response.payment.paymentCollectionId,
+        paymentCollectionStatus: response.payment.paymentCollectionStatus,
+        paymentSessionId: response.payment.paymentSessionId,
+        providerId: response.payment.providerId,
+        sessionStatus: response.payment.sessionStatus,
+        clientSecret: response.payment.clientSecret,
+      },
+    }
+  }
+
+  if (
+    response.state === "reconcile" &&
+    response.issue &&
+    response.issue !== "error"
+  ) {
+    return { kind: "reconcile", status: response.issue }
+  }
+
+  return { kind: "failed", status: "error" }
+}
+
 export async function getCheckoutPageData(): Promise<CheckoutPageData> {
   const cartId = await readCartId()
 
@@ -94,6 +174,18 @@ export async function getCheckoutPageData(): Promise<CheckoutPageData> {
 
     logCheckoutFailure("retrieve", error)
     return { kind: "unavailable" }
+  }
+
+  if (cart.completed_at) {
+    try {
+      return {
+        kind: "confirmation",
+        confirmation: await retrieveCompletedCheckoutConfirmation(cartId),
+      }
+    } catch (error) {
+      logCheckoutFailure("completed-order", error)
+      return { kind: "reconciliation-unavailable" }
+    }
   }
 
   if (!cart.items?.length) {
@@ -128,11 +220,55 @@ export async function getCheckoutPageData(): Promise<CheckoutPageData> {
     }
   }
 
+  let payment: CheckoutPaymentProjection | null = null
+  let paymentUnavailable = false
+  let paymentIssue: CheckoutPaymentIssue | null = null
+
+  if (hasPaymentPrerequisites(cart)) {
+    try {
+      const decision = classifyStripePaymentSession(cart)
+
+      if (decision.kind === "reuse") {
+        payment = projectStripePaymentSession(cart.payment_collection!, decision.session)
+      } else if (decision.kind === "initialize") {
+        const prepared = await initializeStripePaymentSession(cart)
+
+        if (prepared.kind === "ready") {
+          payment = prepared.payment
+        } else {
+          paymentIssue = prepared.status
+        }
+      } else if (decision.kind === "reconcile") {
+        paymentIssue = decision.status
+      } else {
+        paymentIssue = decision.status
+      }
+    } catch (error) {
+      logCheckoutFailure("payment-session", error)
+      paymentUnavailable = true
+    }
+  }
+
   return {
     kind: "available",
     cart,
     countries,
     shippingOptions,
     shippingOptionsUnavailable,
+    payment,
+    paymentUnavailable,
+    paymentIssue,
+    publishableKey: process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY?.trim() || null,
   }
+}
+
+export async function retrieveCompletedCheckoutConfirmation(
+  cartId: string
+): Promise<CheckoutConfirmation> {
+  const client = getMedusaClient()
+  const response = await client.client.fetch<{
+    confirmation: Parameters<typeof projectCheckoutConfirmation>[0]
+  }>(`/store/carts/${encodeURIComponent(cartId)}/completed-order`)
+
+  return projectCheckoutConfirmation(response.confirmation)
 }

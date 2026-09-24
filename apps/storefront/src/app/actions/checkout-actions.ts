@@ -2,14 +2,20 @@
 
 import { revalidatePath } from "next/cache"
 
-import { readCartId } from "../../lib/medusa/cart-cookie"
+import { clearCartId, readCartId } from "../../lib/medusa/cart-cookie"
 import { getCheckoutActionErrorMessage } from "../../lib/medusa/checkout-errors"
 import {
   getAvailableShippingOptions,
   getCheckoutCountries,
   retrieveCheckoutCart,
+  retrieveCompletedCheckoutConfirmation,
 } from "../../lib/medusa/checkout"
 import { getMedusaClient } from "../../lib/medusa/client"
+import {
+  canClearCartForResult,
+  projectCheckoutConfirmation,
+  type CheckoutConfirmation,
+} from "../../lib/medusa/checkout-payment"
 import { getIdentifier } from "../../lib/medusa/cart-validation"
 import {
   hasStoredCheckoutContact,
@@ -132,5 +138,90 @@ export async function selectShippingMethodAction(
     }
   } catch (error) {
     return getCheckoutActionErrorMessage(error, "shipping-method")
+  }
+}
+
+export async function completeCheckoutAction(
+  _previousState: CheckoutActionState,
+  _formData: FormData
+): Promise<CheckoutActionState> {
+  const cartId = await readCartId()
+
+  if (!cartId) {
+    return {
+      status: "error",
+      message: "This guest cart is no longer available. Return to the cart and try again.",
+      paymentState: "pending",
+    }
+  }
+
+  try {
+    const cart = await retrieveCheckoutCart(cartId)
+
+    if (
+      !cart.items?.length ||
+      !hasStoredCheckoutContact(cart.email, cart.shipping_address) ||
+      !hasStoredCheckoutContact(cart.email, cart.billing_address) ||
+      !cart.shipping_methods?.length
+    ) {
+      return {
+        status: "error",
+        message: "Finish the contact, address, and shipping steps before paying.",
+        paymentState: "pending",
+      }
+    }
+
+    const client = getMedusaClient()
+    const result = await client.store.cart.complete(cartId, {
+      fields: "display_id,custom_display_id,currency_code,*summary",
+    })
+
+    if (!canClearCartForResult(result)) {
+      return {
+        status: "error",
+        message: "Payment is still being confirmed. Your cart remains available; try again shortly.",
+        paymentState: "pending",
+      }
+    }
+
+    const confirmation = projectCheckoutConfirmation(result.order)
+    return {
+      status: "success",
+      message: "Payment received and order placed.",
+      confirmation,
+      paymentState: "ready",
+    }
+  } catch (error) {
+    return {
+      ...getCheckoutActionErrorMessage(error, "payment"),
+      paymentState: "pending",
+    }
+  }
+}
+
+export async function clearCompletedCartAction(
+  expectedConfirmation: CheckoutConfirmation
+): Promise<void> {
+  const cartId = await readCartId()
+
+  if (!cartId) {
+    return
+  }
+
+  try {
+    const confirmation = await retrieveCompletedCheckoutConfirmation(cartId)
+
+    if (
+      confirmation.displayId !== expectedConfirmation.displayId ||
+      confirmation.customDisplayId !== expectedConfirmation.customDisplayId ||
+      confirmation.total !== expectedConfirmation.total ||
+      confirmation.currencyCode !== expectedConfirmation.currencyCode
+    ) {
+      return
+    }
+
+    await clearCartId()
+  } catch {
+    // Retain the continuity reference until Medusa confirms its completed order.
   }
 }

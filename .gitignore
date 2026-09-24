@@ -1,5 +1,6 @@
 node_modules/
 .pnpm-store/
+/.playwright-cli/
 
 # Generated application output
 apps/**/.next/

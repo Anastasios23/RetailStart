@@ -6,6 +6,9 @@ export type CheckoutOperation =
   | "address"
   | "shipping-options"
   | "shipping-method"
+  | "payment-session"
+  | "completed-order"
+  | "payment"
 
 function getHttpStatus(error: unknown): number | undefined {
   if (error instanceof FetchError) {
@@ -60,7 +63,9 @@ export function getCheckoutActionErrorMessage(
       message:
         operation === "address"
           ? "Those contact or delivery details were rejected. Check the fields and try again."
-          : "That shipping option is no longer available for this cart. Refresh and choose another option.",
+          : operation === "payment"
+            ? "The payment is not ready to complete yet. Your cart remains available; try again."
+            : "That shipping option is no longer available for this cart. Refresh and choose another option.",
     }
   }
 

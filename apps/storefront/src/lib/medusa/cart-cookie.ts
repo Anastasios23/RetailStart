@@ -27,3 +27,8 @@ export async function writeCartId(cartId: string): Promise<void> {
     createCartCookieOptions(process.env.NODE_ENV === "production")
   )
 }
+
+export async function clearCartId(): Promise<void> {
+  const cookieStore = await cookies()
+  cookieStore.delete(CART_COOKIE_NAME)
+}

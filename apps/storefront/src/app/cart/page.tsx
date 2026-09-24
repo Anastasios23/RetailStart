@@ -104,7 +104,7 @@ function CartSummary({ cart }: { cart: HttpTypes.StoreCart }) {
         ) : null}
       </dl>
       <p className="cart-summary__note">
-        Prices and totals are supplied by the commerce backend. Payment is deferred to the next phase.
+        Prices and totals are supplied by the commerce backend. Secure payment is completed at checkout.
       </p>
       <Link className="button-link" href="/checkout">
         Continue to checkout

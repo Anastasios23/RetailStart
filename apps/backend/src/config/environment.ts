@@ -8,6 +8,9 @@ export const runtimeEnvironmentSchema = z.object({
   COOKIE_SECRET: z.string().min(1),
   DATABASE_URL: z.string().url(),
   DB_NAME: z.string().min(1),
+  STRIPE_API_KEY: z.string().min(1),
+  STRIPE_WEBHOOK_SECRET: z.string().min(1),
+  STRIPE_PAYMENT_METHOD_CONFIGURATION: z.string().regex(/^pmc_[A-Za-z0-9]+$/),
   SHUTDOWN_TIMEOUT_MS: z.coerce.number().int().positive().default(10000),
 })
 

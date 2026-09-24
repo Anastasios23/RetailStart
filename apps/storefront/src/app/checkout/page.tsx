@@ -4,6 +4,7 @@ import Link from "next/link"
 import { CheckoutForm } from "../components/checkout-form"
 import { getCheckoutPageData } from "../../lib/medusa/checkout"
 import { redirect } from "next/navigation"
+import { ConfirmationClient } from "./confirmation/confirmation-client"
 
 export const dynamic = "force-dynamic"
 
@@ -30,6 +31,23 @@ function CheckoutUnavailableState() {
   )
 }
 
+function CheckoutReconciliationUnavailableState() {
+  return (
+    <main className="page-shell checkout-page" aria-labelledby="checkout-reconciliation-title">
+      <header className="page-heading">
+        <p className="eyebrow">Guest checkout</p>
+        <h1 id="checkout-reconciliation-title">Order confirmation temporarily unavailable</h1>
+        <p className="lede">
+          Medusa reports that checkout has completed, but we could not retrieve the order confirmation. Do not try to pay again. Refresh to check the order status.
+        </p>
+      </header>
+      <div className="action-row checkout-unavailable__actions">
+        <Link className="button-link" href="/checkout">Refresh order status</Link>
+      </div>
+    </main>
+  )
+}
+
 export default async function CheckoutPage() {
   const result = await getCheckoutPageData()
 
@@ -41,6 +59,18 @@ export default async function CheckoutPage() {
     return <CheckoutUnavailableState />
   }
 
+  if (result.kind === "reconciliation-unavailable") {
+    return <CheckoutReconciliationUnavailableState />
+  }
+
+  if (result.kind === "confirmation") {
+    return (
+      <main className="page-shell checkout-page" aria-labelledby="checkout-confirmation-title">
+        <ConfirmationClient {...result.confirmation} />
+      </main>
+    )
+  }
+
   return (
     <main className="page-shell checkout-page" aria-labelledby="checkout-title">
       <CheckoutForm
@@ -48,6 +78,10 @@ export default async function CheckoutPage() {
         countries={result.countries}
         shippingOptions={result.shippingOptions}
         shippingOptionsUnavailable={result.shippingOptionsUnavailable}
+        payment={result.payment}
+        paymentUnavailable={result.paymentUnavailable}
+        paymentIssue={result.paymentIssue}
+        publishableKey={result.publishableKey}
       />
     </main>
   )

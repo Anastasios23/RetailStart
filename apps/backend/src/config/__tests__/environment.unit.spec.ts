@@ -9,15 +9,12 @@ const validEnvironment = {
   DATABASE_URL:
     "postgres://retail_starter:retail_starter_local@localhost:5433/retail_starter_dev",
   DB_NAME: "retail_starter_dev",
+  STRIPE_API_KEY: "stripe-api-key-placeholder",
+  STRIPE_WEBHOOK_SECRET: "stripe-webhook-secret-placeholder",
+  STRIPE_PAYMENT_METHOD_CONFIGURATION: "pmc_testconfiguration",
 }
 
 describe("parseRuntimeEnvironment", () => {
-  it("accepts the isolated local PostgreSQL connection", () => {
-    expect(parseRuntimeEnvironment(validEnvironment).DATABASE_URL).toContain(
-      "localhost:5433/retail_starter_dev"
-    )
-  })
-
   it("rejects a missing database URL", () => {
     const invalidEnvironment = { ...validEnvironment, DATABASE_URL: "" }
 

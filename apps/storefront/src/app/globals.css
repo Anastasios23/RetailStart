@@ -642,6 +642,39 @@ button:disabled {
   font-size: 1.15rem;
 }
 
+.checkout-confirmation {
+  border-color: var(--accent);
+  box-shadow: 0 0.75rem 2rem rgb(20 108 91 / 10%);
+}
+
+.checkout-confirmation__facts {
+  display: grid;
+  gap: 0.75rem;
+  margin: 0;
+}
+
+.checkout-confirmation__facts > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--line);
+}
+
+.checkout-confirmation__facts dt {
+  color: var(--muted);
+}
+
+.checkout-confirmation__facts dd {
+  margin: 0;
+  font-weight: 750;
+  text-align: right;
+}
+
+.checkout-section fieldset:disabled {
+  opacity: 0.7;
+}
+
 .checkout-unavailable__actions {
   margin-top: 3rem;
 }

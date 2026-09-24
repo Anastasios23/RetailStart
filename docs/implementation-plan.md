@@ -883,6 +883,493 @@ order snapshot.
 - Reconciliation test for a provider state that cannot be resolved from the
   initial response alone.
 
+### Phase 7 implementation evidence
+
+The Phase 7 implementation is present in the storefront working tree on
+2026-09-21 and remains intentionally uncommitted. It uses the installed
+Medusa 2.21.0 SDK signatures and the native Medusa Stripe provider; no custom
+Stripe backend client, webhook handler, or storefront payment authority was
+introduced.
+
+- The backend environment contains all three required Stripe settings:
+  `STRIPE_API_KEY`, `STRIPE_WEBHOOK_SECRET`, and the backend-only
+  `STRIPE_PAYMENT_METHOD_CONFIGURATION`. The storefront template exposes only
+  `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY`. No secret or client secret is recorded
+  in this plan.
+- A dedicated Stripe test-mode Payment Method Configuration
+  `pmc_1UI3whHNMTLJ4i9owqoH0V1S` was created as `Retail Starter V1 Card Only`.
+  Its enabled method set is `card` only. `medusa-config.ts` passes that value to
+  the installed provider's supported `paymentMethodConfiguration` option, with
+  `capture: true`; no additional Medusa provider ID was added and
+  `automaticPaymentMethods` remains unset.
+- A clean Medusa restart through the local backend development process reported
+  ready on port 9000. `/health`, `/health/liveness`, and
+  `/health/readiness` returned HTTP 200. The keyed Store API still exposed
+  exactly one enabled provider: `pp_stripe_stripe`.
+- Before testing, native Medusa Admin showed the fixture at stocked `7`,
+  reserved `7`, available `0`. Through Admin only, in-stock quantity was set
+  to `14`; Admin then showed stocked `14`, reserved `7`, available `7`.
+  Existing reservations were retained. The final Admin inventory state after
+  the stopped closure attempt remained `14 / 7 / 7`.
+- The pre-fix call path was `force-dynamic /checkout` →
+  `getCheckoutPageData` → `initializeStripePaymentSession` →
+  `initiatePaymentSession`. It ran on every qualifying server page load, so a
+  refresh, navigate-away/back, or Payment Element remount could explicitly
+  replace an already-current session. No payment-session Server Action,
+  checkout initialization effect, rerender handler, address-update handler, or
+  shipping-selection handler called `initiatePaymentSession`; those mutations
+  only revalidated `/checkout` and could cause the page loader to run again.
+- The pre-fix authoritative observation was a fresh cart with payment
+  collection `pay_col_01M31YS5980AFCEP4YEFEF1K47` and Stripe session
+  `payses_01M31YS7HWXXRKNSG4K9BKBZC8` (`pending`), where the collection and
+  session were both EUR 30.00 and the session exposed client-safe Stripe data.
+  The unconditional second initialization created a replacement PaymentIntent
+  and canceled the predecessor. This is the Retail Starter defect: unnecessary
+  explicit initialization while a valid current Medusa session already exists.
+- The fix adds a pure `getReusableStripePaymentSession(cart)` classifier using
+  the v2.21.0 Store API fields `payment_collection.id`, `amount`,
+  `currency_code`, nested `payment_sessions`, session `id`, `amount`,
+  `currency_code`, `provider_id`, `status`, and client-safe `data.client_secret`.
+  `pending` and `requires_more` matching sessions are reused; canceled or
+  stale sessions may initialize; `error` is surfaced as failed-session recovery;
+  and `authorized`, `captured`, and `pending_authorization` are surfaced for
+  reconciliation without blindly initializing another session.
+- After the fix, a fresh post-restart browser cart
+  `cart_01M321T45S6H97BKPMBNXT9ZH5` had collection
+  `pay_col_01M321V6PMASZQWY8DVB9CWN7D` and session
+  `payses_01M321V6VSZNY00REZW3JJSBAC`, both at EUR 30.00 with session status
+  `pending` and client-safe data present. Three sequential refreshes plus
+  navigate-away/back kept that Medusa session current and kept Stripe
+  PaymentIntent `pi_3UI76WHNMTLJ4i9o0qW190Uv` as the only intent created by
+  those loads; no additional canceled intent appeared. The Payment Element
+  mounted in the browser, although the isolated browser exposed only Stripe's
+  loading frame rather than card-field contents. No payment was submitted.
+- A deliberate quantity change on that cart changed the authoritative total
+  from EUR 30.00 to EUR 55.00. Native Medusa canceled the old session and
+  Stripe intent, then the next checkout preparation created session
+  `payses_01M3221EXXJFQ11W3TX9N1P7ZY` and PaymentIntent
+  `pi_3UI79kHNMTLJ4i9o1fID2H3u` for EUR 55.00. The storefront rendered the
+  new current session and did not retain the canceled client secret. This is
+  native Medusa replacement on a cart-total change, not the reload defect.
+- A separate fresh cart, `cart_01M3222XS7N98YSYGWC68STAKF`, was prepared with
+  contact, billing, and shipping data. Two concurrent `/checkout` requests
+  both observed no payment collection and entered initialization. Medusa
+  created one collection, while the losing initialization concurrently tried
+  to create another and logged HTTP 500 `Cart ... already has a payment
+  collection`; the storefront responses were HTTP 200 because the failed
+  preparation was projected as an unavailable-payment state. The winning path
+  left one `pending` Stripe session `payses_01M3224GVPYT3WJ9XFSKQTYJHG` and
+  one active EUR 30.00 PaymentIntent `pi_3UI7BNHNMTLJ4i9o0qApGhT0`, so no
+  duplicate Stripe intent was created in this attempt. The race was therefore
+  reproduced at the Medusa Store API payment-collection boundary. The closure
+  below is implemented as the smallest supported extension; Medusa core remains
+  untouched.
+- The backend now configures Medusa's installed PostgreSQL Locking Module
+  provider `@medusajs/medusa/locking-postgres` as the default `postgres`
+  provider. No new locking package was added because the existing Medusa 2.21.0
+  installation already resolves the provider. The supported migration ran and
+  direct PostgreSQL inspection confirmed the provider-created `public.locking`
+  table.
+- `ensureCartPaymentSessionWorkflow` is the backend-owned cart-scoped
+  operation. It acquires the cart ID resource key with Medusa
+  `acquireLockStep`, re-reads the authoritative cart/payment collection/session
+  fields while locked, invokes the supported collection and payment-session
+  workflows only when required, re-reads the final state, and releases through
+  the workflow path. Each workflow execution supplies a unique lock owner ID,
+  so concurrent PostgreSQL provider acquisitions cannot be treated as the same
+  owner. Nested core locking steps are skipped as subworkflow steps, so the
+  parent owns the critical section. Compensation covers failures before the
+  explicit release.
+- The Store API route is
+  `POST /store/carts/:id/payment-session`. Medusa's normal publishable-key
+  middleware is required, the cart's sales channel must be in
+  `req.publishable_key_context.sales_channel_ids`, and the route accepts only
+  the current Stripe provider ID. The response contains collection/session
+  identifiers and status, provider, amount, currency, and client-safe Stripe
+  data only; it accepts no browser amount, currency, payment collection, order,
+  or client-secret input.
+- The locked state decision reuses only a current Stripe `pending` or
+  `requires_more` session with matching authoritative amount/currency and a
+  client secret. `authorized`, `captured`, and `pending_authorization` return
+  explicit reconciliation states; `error` returns explicit recovery state;
+  canceled and stale sessions use the supported replacement workflow. Missing
+  collections use `createPaymentCollectionForCartWorkflow`, and session
+  creation uses `createPaymentSessionsWorkflow`; no raw payment-intent or
+  direct payment-session insertion path was added.
+- The storefront no longer calls
+  `sdk.store.payment.initiatePaymentSession`. Its initialization branch calls
+  the new Store API route and keeps lock/state ownership in Medusa; the existing
+  classifier remains presentation/recovery logic for already retrieved cart
+  state.
+- The backend state unit suite passes all four focused decisions. The installed
+  `@medusajs/test-utils` 2.21.0 captures `DB_HOST`, `DB_PORT`, the database role,
+  password, and waiting-room database while its database module is imported;
+  its runner-level environment is applied too late to repair those credentials.
+  The ignored `apps/backend/.env.test` now supplies `localhost:5433`, the
+  retail role, and `postgres` as the waiting-room database. Jest loads that file
+  before the HTTP spec imports `@medusajs/test-utils`, and the integration setup
+  selects IPv4 first so Windows `localhost` reaches the retail Docker mapping.
+- The controlled pre-fix attempt created its random integration database on
+  the retail PostgreSQL server at `localhost:5433`, then stalled because the
+  runner treated `127.0.0.1` as a non-local host and enabled SSL against the
+  local non-SSL PostgreSQL server. The resulting Knex pool-acquisition timeout
+  was connection setup failure, not pool exhaustion: retail PostgreSQL remained
+  at `max_connections=100`, the role retained its existing capabilities, and
+  no pool, timeout, or PostgreSQL setting was increased. The Erasmus PostgreSQL
+  server on port `5432` was not changed and contained no `medusa-*` database.
+- After the bootstrap fix, a disposable `/health` smoke run returned HTTP 200,
+  and the real HTTP integration suite passed all five checks: missing-key
+  rejection (Medusa 2.21.0 returns HTTP 400 for `NOT_ALLOWED`), sales-channel
+  scope rejection, reusable-session reuse, concurrent one-collection/one-session
+  preparation, and provider-failure lock cleanup. The integration runner
+  created and cleaned its random database on the retail server without the pool
+  timeout. A two-process local check on Medusa ports `9000` and `9100` then sent
+  the same cart request concurrently: both returned `200 ready` with the same
+  session, and PostgreSQL confirmed one collection, one session, and zero
+  remaining locks. No payment was submitted and no webhook closure was run.
+- The fresh post-restart PMC check recorded the intended card-only result:
+  the active test PaymentIntent used `payment_method_types: [card]`,
+  automatic capture, and Payment Method Configuration
+  `pmc_1UI3whHNMTLJ4i9owqoH0V1S`. Repeated checkout loads reused the one
+  current session. At this 2026-09-21 checkpoint, no successful PaymentIntent
+  or webhook recovery had occurred; payment submission, webhook ambiguity
+  recovery, exact duplicate-event redelivery, and post-recovery completion
+  semantics remained deferred. The later controlled recovery below supersedes
+  the genuine-webhook status, while exact duplicate-event redelivery remains a
+  staging/pre-production gate.
+- Stripe CLI `1.51.0` reports exact redelivery syntax as
+  `stripe events resend <event> --webhook-endpoint <endpoint>`. In this earlier
+  attempt no event was redelivered and the genuine Step 4 event had not been
+  reached; this dated limitation is superseded by the later event recovery.
+  Exact duplicate-event redelivery remains unverified.
+
+The final repository quality gate was rerun after this locking correction:
+`pnpm lint` passed with no lint issues; `pnpm typecheck` passed for backend and
+storefront; `pnpm test` passed with 2 backend Jest tests and 22 storefront
+tests; `pnpm build` passed for backend and storefront, including the dynamic
+`/checkout/confirmation` route; and `git diff --check` passed. The storefront
+test runner emitted only the existing module-type warnings, and the Medusa
+build used its documented fake Redis fallback because no Redis URL is
+configured. The shell also emitted an engine warning from its nested pnpm
+runner reporting Node 24/pnpm 11 even though Corepack resolved the repository
+manager as pnpm 10.11.1; the direct Node test process reported Node 22.23.2.
+The working tree remains intentionally dirty and no commit was created.
+
+The Phase 7 invariant is therefore not “exactly one Stripe PaymentIntent ever
+per cart.” It is:
+
+- at most one current usable Stripe payment session is authoritative to the
+  storefront;
+- repeated checkout loads do not manufacture replacement sessions;
+- canceled predecessor PaymentIntents caused by legitimate Medusa session
+  replacement are not treated as duplicate charges;
+- only one PaymentIntent may become the successful/captured payment for the
+  completed order; and
+- exactly one Medusa order is produced.
+
+### Phase 7 acceptance closure evidence — 2026-09-23
+
+- The previously verified browser success, decline-and-retry, 3DS, and
+  response-loss-with-webhook-disabled scenarios remain recorded above and in
+  the preceding handoff. In this resumed run, the existing ambiguity order
+  (display reference `11`, EUR 30.00) rendered on the local confirmation page;
+  its page effect cleared `retail_cart_id`, and `/cart` then showed an empty
+  cart.
+- A fresh real Chrome Payment Element success created the next authoritative
+  Medusa order (display reference `12`, EUR 30.00). The immediate confirmation
+  stated that payment was captured and Medusa confirmed the order. The
+  confirmation effect cleared the guest cart, and the subsequent `/cart` was
+  empty. The fresh Stripe CLI `1.51.0` read showed the associated PaymentIntent
+  as `succeeded`, with automatic capture and one captured latest charge.
+- Read-only PostgreSQL inspection after payment found one order, one completed
+  payment collection, one payment with `captured_at`, one current payment
+  session, one ordered unit, and one reservation for reference `12`. Two
+  simultaneous public Store API complete-cart requests for that already-paid
+  cart both returned HTTP 200, `type: "order"`, and reference `12`. Reinspection
+  found the same single order/payment/capture/session/reservation counts; the
+  Stripe PaymentIntent remained succeeded and captured. No extra payment
+  session or payment effect was created.
+- The native completion result handling remains explicit: `type: "order"` is
+  authoritative success and `type: "cart"` is not. The focused storefront test
+  verifies that only the order result permits cart-cookie clearing.
+- Restart durability passed for the new order. Next.js was restarted and
+  served `/cart` with HTTP 200. Medusa was then restarted while the healthy
+  PostgreSQL container remained running. After Medusa readiness returned HTTP
+  200, the order, completed collection, payment, capture timestamp, Stripe
+  provider reference, payment session, and reservation remained present; Stripe
+  still reported the same PaymentIntent succeeded with automatic capture.
+- The pre-existing reference `12` has ordered quantity `1`, no fulfillment
+  record, and zero fulfilled or shipped quantity. Through Medusa Admin only,
+  the fixture was set to stocked `19`; after a full refresh Admin showed
+  reserved `12` and available `7`, with all twelve existing reservation rows
+  retained. No SQL inventory mutation was made.
+- The verified Stripe CLI `1.51.0` syntax is
+  `stripe events resend <event> --webhook-endpoint <endpoint>`. The existing
+  endpoint inventory contained one endpoint and no `localhost` or
+  `127.0.0.1` target, so the exact existing event cannot be resent to the local
+  CLI forwarder with this setup. No endpoint or replay proxy was created;
+  duplicate-event delivery remains a staging/pre-production verification.
+  During the current resumed run, Stripe CLI `1.51.0` was started with
+  forwarding to `http://localhost:9000/hooks/payment/stripe_stripe` and its
+  signing secret was installed in the ignored backend environment without
+  recording the value. No webhook event had yet been observed at this dated
+  checkpoint; the later controlled recovery below supersedes that status.
+- A fresh in-app browser cart was created through the product page and prepared
+  with address and Development Standard Delivery. Store API readback showed
+  `cart_01M36TAWJ4ZNVT7C19HXSX1YZ0`, one payment collection
+  `pay_col_01M36TFBRE6H2FBB1C527KT428`, and one pending session
+  `payses_01M36TFHVM47MVVANAP518KM5H` for `pp_stripe_stripe`. Stripe readback
+  showed PaymentIntent `pi_3UImjxHNMTLJ4i9o0qaW6Msb` at `requires_payment_method`,
+  EUR 30, card-only, automatic capture, and the configured card-only PMC. On
+  reopening the same checkout URL in the in-app browser, Stripe.js emitted only
+  its expected test-over-HTTP warning; no browser-console error or challenge
+  appeared. Stripe-created iframes existed, but the Payment Element iframe
+  remained 2 px high inside a 238 px wrapper and its frame body exposed no card
+  fields. The available evidence localizes the failure to Payment Element
+  iframe initialization/rendering in this in-app browser context after
+  Stripe.js loaded; it does not establish the underlying network/browser cause.
+  The earlier Playwright CLI browser snapshot had shown the card-only UI. Per
+  the stop condition, no payment was submitted and this cart produced no order
+  or capture. A separate previously prepared browser-context cart
+  `cart_01M36RF0XYC5F69XHXZ5A9BR9E` also remains unpaid; its PaymentIntent
+  `pi_3UImGzHNMTLJ4i9o0SYTOQHU` remains at `requires_payment_method`. These two
+  carts must not be confused with the pre-existing references `11` and `12`.
+  At this dated checkpoint, payment submission, webhook recovery, and storefront
+  reconciliation were still pending. The later controlled recovery below
+  supersedes this status; the unpaid cart details above remain historical.
+- The standalone Chrome render was diagnosed separately from the in-app browser:
+  Chrome had exposed real card fields, EUR 30.00, and the warning
+  `You cannot change the stripe prop after setting it.` The warning traced to
+  `StripePaymentForm` calling `loadStripe(publishableKey)` during render. The
+  key is a fixed, trimmed `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY` environment value
+  projected by `getCheckoutPageData`, so ordinary rerenders use the same key.
+  A module-scoped keyed promise cache now calls `loadStripe` once per key and
+  returns the same promise on later renders; no payment/session or Medusa
+  lifecycle behavior changed. `<Elements>` retains its
+  `key={payment.clientSecret}`, so it remounts only when the authoritative
+  payment session/client secret changes. A focused regression test asserts one
+  load and promise identity across repeated requests for the same key.
+- After restarting the storefront, standalone Chrome was refreshed and safely
+  navigated from checkout to cart and back. The Payment Element continued to
+  render card number, expiry, and security-code fields; its iframe measured
+  696 × 226 px. The `stripe`-prop warning did not recur; only Stripe's expected
+  test-over-HTTP warning remained. No blank 2 px payment iframe was observed in
+  these post-fix checks. Stripe CLI's latest PaymentIntent remained
+  `pi_3UItCaHNMTLJ4i9o1vVDhW4t`, EUR 30.00 and
+  `requires_payment_method`, before and after the refresh/navigation checks, so
+  no new PaymentIntent was created by those renders. No card data was entered,
+  payment submitted, order created, or capture made. This confirms the
+  unstable-Stripe-prop defect was corrected; it does not prove that it caused
+  every earlier blank iframe in other browser contexts.
+- `pnpm lint`, `pnpm typecheck`, and `pnpm test` passed under a temporary
+  process-local shim that selected Node `22.23.2` and pnpm `10.11.1`. The
+  original warning came from `pnpm` resolving to the Codex fallback wrapper
+  before Corepack, which launched Node `24.19.0` and pnpm `11.25.0`; no global
+  PATH change was made. A final server-stopped `pnpm build` and
+  `git diff --check` remain to be run after the payment recovery checkpoint.
+
+### Phase 7 confirmation gate and webhook preparation — 2026-09-24
+
+- Source review found that the storefront checked the `confirmPayment` error
+  but did not require the returned PaymentIntent to be `succeeded` before
+  starting Medusa completion. The redirect recovery path also accepted
+  `processing` and `requires_capture`. The gate now requires no Stripe error, a
+  PaymentIntent ID, and `succeeded` for this automatic-capture card flow.
+- The same review found no synchronous guard against a second submit while
+  Stripe confirmation was pending, and the button remained enabled during that
+  phase. A ref-backed attempt lock now blocks overlapping submissions;
+  confirmed recoverable failures release the lock for retry while uncertain
+  confirmation outcomes keep it locked pending reconciliation.
+- Focused storefront tests passed `25/25`, including success gating and lock
+  release/retry coverage. Storefront TypeScript passed. No payment or cart was
+  created during this review.
+- The local app runs under Node `22.23.2` and pnpm `10.11.1`. The standalone
+  Chrome catalog page loaded the development fixture; Medusa `/health` returned
+  HTTP 200.
+- Stripe CLI `1.51.0` was invoked from the npm-installed shim, subscribed to
+  the installed Medusa Stripe provider's handled PaymentIntent event types, and
+  reported ready while forwarding to
+  `http://localhost:9000/hooks/payment/stripe_stripe`. Its active signing
+  secret matched the ignored backend environment setting; neither value is
+  recorded here. The listener remains connected.
+- The controlled fresh-cart/payment attempt has not started. Standalone Chrome
+  is waiting for the user to set the DevTools breakpoint before creating a
+  fresh cart. Genuine signed webhook recovery and storefront reconciliation
+  were still unverified at this preparation checkpoint; the later controlled
+  recovery below supersedes that status.
+- A follow-up review found that a rejected Stripe confirmation promise or a
+  returned non-terminal PaymentIntent status could unlock the submit button
+  with a retry message, even though the payment outcome was uncertain. The
+  pinned Stripe.js 8.2.0 types distinguish connection/API errors from card and
+  validation errors and expose a PaymentIntent on relevant errors; Stripe's
+  PaymentIntent confirmation reference documents `requires_payment_method` as
+  the retryable failed-payment state and `succeeded` as success for automatic
+  capture. Retry is now restored only for validation errors or a
+  `requires_payment_method` status. Rejected confirmation requests, status-read
+  errors, and other non-terminal statuses keep payment submission disabled and
+  show a do-not-resubmit message.
+- The new retry-policy test failed first because the decision helper was
+  missing, then the complete storefront test suite passed `26/26`; storefront
+  TypeScript passed. This covers the decision rules, not Stripe network
+  behavior in a real browser. The fresh browser attempt remains paused before
+  cart creation until the requested DevTools breakpoint is visibly set.
+- After this policy change, the full root `pnpm lint`, `pnpm typecheck`, and
+  `pnpm test` gates passed under Node `22.23.2` and pnpm `10.11.1`. Backend
+  lint reported no issues; backend tests passed 2 suites / 6 tests, and
+  storefront tests passed 26/26. The build and final diff/status/secret checks
+  remain pending until after the controlled browser recovery attempt.
+
+At this checkpoint, Phase 7 still required usable Payment Element fields in the
+chosen browser, genuine signed webhook recovery, storefront reconciliation, and
+the final quality gate. The later evidence below records those outcomes. Exact
+duplicate-event delivery remains a staging/pre-production gate.
+
+### Checkout refresh reconciliation defect — 2026-09-24
+
+The current Chrome checkout showed the existing EUR 30 cart and an authorized
+Stripe payment session. Source tracing confirmed the refresh link performs a
+GET of `/checkout`; server rendering re-retrieves the cart and classifies an
+authorized session as requiring reconciliation. That branch did not look up an
+existing Medusa order, so it rendered the same payment-status message and
+could not reach confirmation. It did not need to initialize a session to
+reproduce this path.
+
+The installed Medusa 2.21.0 completion workflow writes the cart completion
+timestamp and obtains the associated order through the `order_cart` link. Its
+Store API cart retrieval does not include the associated order, so storefront
+cart retrieval alone cannot restore a confirmation. The repair adds a
+read-only Store API route that requires a completed cart in the publishable
+key's sales-channel scope, follows the authoritative `order_cart` link, and
+returns only display reference, currency, and total. Checkout and confirmation
+now retrieve this projection from Medusa; URL parameters are no longer treated
+as confirmation evidence. The continuity cookie is cleared only after a
+second authoritative lookup matches the confirmation currently displayed. The
+payment-session preparation route also rejects completed carts before running
+the preparation workflow. If the confirmation-page lookup fails temporarily,
+the page keeps the cart and offers a retry through `/checkout` without inviting
+another payment attempt.
+
+Verification performed for this repair:
+
+- The backend route unit suite verifies completed-cart lookup, sales-channel
+  scope, and a response projection that excludes customer email; incomplete
+  and out-of-scope carts are rejected before order lookup. A separate payment-
+  session route unit test verifies completed carts cannot re-enter session
+  preparation.
+- A live read-only request using a deliberately nonexistent cart reference
+  returned the new route's expected `Completed order not found` response. It
+  created no cart and did not inspect or mutate the existing order.
+- Backend/storefront TypeScript checks passed. Backend unit tests passed 9/9
+  across four suites; storefront tests passed 26/26; backend HTTP integration
+  tests passed 5/5 after the final completed-cart payment-session guard was
+  added; backend lint and both application builds passed under Node 22.23.2 and
+  pnpm 10.11.1.
+- Codex attached through the existing Chrome extension session to the existing
+  `Person 1` profile and checkout tab; CDP was not required. The initial
+  refresh encountered `ERR_CONNECTION_REFUSED` because the local storefront
+  server was stopped. After starting the normal local backend and storefront
+  development servers, the same tab rendered the existing order confirmation
+  (reference 13, EUR 30.00). A subsequent `/checkout` visit redirected to
+  `/cart`, which rendered the empty-cart state after the confirmation action.
+  Browser console inspection found no warnings or errors; the only message was
+  React's development-tools information. Next.js logged `/checkout` 200, the
+  confirmation server action 200, then `/checkout` 307 and `/cart` 200.
+  Medusa logged the cart and completed-order projections as HTTP 200.
+- Before and after the browser check, read-only PostgreSQL inspection of local
+  database `retail_starter_dev` confirmed cart
+  `cart_01M394THAFQWGJN86C3R1Q5E7Z` completed at
+  `2026-09-24T07:32:30.827Z`, linked to exactly one order
+  `order_01M395929YKQHCS13QDYKGND1F` (reference 13), one completed EUR 30
+  payment collection, one EUR 30 payment, one capture, and one linked Stripe
+  PaymentIntent (`pi_3UJ71iHNMTLJ4i9o1394vBTp`). The Stripe safe projection
+  reported `succeeded`, automatic capture, EUR 30 received, and test mode.
+  There was one payment session, unchanged, with Medusa state `authorized` and
+  the same PaymentIntent. The order's one reservation remained owned by its
+  order line item (quantity 1). Inventory remained 19 stocked, 13 reserved,
+  and 6 available; 13 active reservations totaling 13 units exist across that
+  inventory item and location. No replacement collection/session or duplicate
+  reservation appeared.
+- Medusa `/health` and `/health/readiness` both returned HTTP 200 after the
+  local development server was started. No payment was submitted, and no new
+  cart, payment session, PaymentIntent, payment, capture, order, or reservation
+  was created by this verification.
+
+### Controlled signed webhook recovery and final evidence — 2026-09-24
+
+The controlled recovery cart is `cart_01M394THAFQWGJN86C3R1Q5E7Z`, linked to
+order `order_01M395929YKQHCS13QDYKGND1F` (display reference 13). Current
+read-only Stripe and PostgreSQL evidence was re-read for this checkpoint; the
+historical listener and browser details are identified separately below.
+
+- **Newly reverified — Stripe event and PaymentIntent:** Stripe CLI safe
+  projections returned event `evt_3UJ71iHNMTLJ4i9o1TAcOd60`, type
+  `payment_intent.succeeded`, created `2026-09-24T07:32:26Z`, for
+  `pi_3UJ71iHNMTLJ4i9o1394vBTp`. A direct PaymentIntent read returned
+  `succeeded`, amount 3000 EUR, `amount_received` 3000, automatic capture,
+  card-only payment methods, and test mode. The approved active Payment Method
+  Configuration `pmc_1UI3whHNMTLJ4i9owqoH0V1S` is named
+  `Retail Starter V1 Card Only` and currently enables `card` only. Stripe's
+  PaymentIntent charge list returned exactly one matching charge, succeeded,
+  paid, captured, and for EUR 30.00. No raw Stripe object or secret is recorded.
+- **Newly reverified — Medusa and PostgreSQL:** Read-only queries returned one
+  completed cart and one linked order; one completed EUR 30 payment collection;
+  one Medusa payment with a capture timestamp and the same PaymentIntent; one
+  Medusa capture; one payment session in `authorized` state; and one order line
+  with quantity one. Exactly one reservation of quantity one is linked to that
+  order line. The associated inventory level reads 19 stocked, 13 reserved, and
+  6 available. The database contains one payment for the PaymentIntent and one
+  order link for this cart. No duplicate linked PaymentIntent, order, capture,
+  payment session, or reservation was found.
+- **Previously observed live evidence:** The retained repository contains no
+  Stripe listener process, forwarding log, or local application log for this
+  event. The prior live run observed the genuine signed event forwarded to
+  Medusa with HTTP 200, the interrupted browser completion recovered after the
+  webhook, and storefront reconciliation reached authoritative confirmation.
+  The confirmation action cleared `retail_cart_id` only after the matching
+  order projection was re-read. These delivery and browser details were not
+  independently re-read during this checkpoint and are not described as newly
+  reverified.
+- The older 2026-09-23 no-event and unpaid-cart statements above describe those
+  earlier checkpoints and do not describe the later successful recovery.
+- **Decline/retry and 3DS:** `Previously observed live/manual Phase 7 evidence;
+  not rerun during the final checkpoint gate.` The repository evidence and
+  earlier handoff do not establish automated coverage for either scenario.
+- **Backend unit count:** The current source contains 9 tests across four
+  discovered suites. Compared with the former 10-test count, the previous
+  affirmative “accepts the isolated local PostgreSQL connection” case was
+  explicitly removed from `environment.unit.spec.ts`; the remaining test
+  rejects a missing database URL. This is a source change, not a Jest discovery
+  change, and no renamed or equivalent affirmative test was found. The removal
+  rationale is not recorded in the repository.
+
+### Phase 7 acceptance automation classification
+
+| Acceptance area | Evidence classification | Current coverage and boundary |
+| --- | --- | --- |
+| Payment-session reuse, preparation concurrency, provider-failure cleanup, and completed-cart rejection | automated and currently passing | Backend HTTP integration tests cover preparation/reuse/concurrency/failure; focused backend unit tests cover completed-cart rejection. |
+| Completion confirmation projection and sales-channel scope | automated and currently passing | Focused backend route unit tests assert the safe projection and reject incomplete or out-of-scope carts. |
+| Authoritative order, payment, capture, payment session, and inventory reservation for the controlled recovery | live/browser verified in current final acceptance | Fresh Stripe projections and read-only PostgreSQL queries confirm one EUR 30 order/payment/capture/session and one linked reservation. |
+| Signed-event forwarding result, interrupted browser return, confirmation rendering, and continuity-cookie cleanup | previously observed live/manual evidence | The earlier run observed HTTP 200 and browser reconciliation. Listener and browser logs were not retained for fresh inspection during this checkpoint. |
+| Payment Element card-field rendering and successful browser payment | previously observed live/manual evidence | A standalone Chrome run rendered card fields and completed a successful payment; that visual/success path was not rerun during the final checkpoint gate. |
+| Card decline/retry and 3DS challenge | previously observed live/manual evidence | `Previously observed live/manual Phase 7 evidence; not rerun during the final checkpoint gate.` These scenarios are not automated coverage. |
+| PaymentIntent success gating and retry-lock decision rules | automated and currently passing | Storefront tests currently pass the client decision-policy cases; this does not automate Stripe network behavior or a browser challenge. |
+| Same-order concurrent completion count invariance | previously observed live/manual evidence | Controlled runtime requests returned the same order; no repeatable integration assertion covers unchanged payment/capture counts. |
+| Exact redelivery of the same Stripe event | staging/pre-production gate | `stripe events resend` targets a registered Stripe webhook endpoint; the current local CLI forwarder is not registered, and no replay endpoint/proxy is approved. |
+| Repeatable browser E2E, browser console/network assertions, and restart/recovery browser coverage | not covered | No maintained browser runner or CI assertions exist in the repository. |
+
+The classifications describe the strongest available evidence, not just
+technical feasibility. Exact duplicate-event redelivery remains a documented
+staging/pre-production gate; repeatable browser E2E and console/network
+assertions remain uncovered. Phase 7 is ready for checkpoint review; Phase 8
+has not started.
+
+The final quality gate passed on 2026-09-24 under Node `22.23.2` and pnpm
+`10.11.1`: backend and storefront typechecks passed; backend lint reported no
+issues; backend unit tests passed 4 suites / 9 tests; storefront tests passed
+26/26; backend HTTP integration passed 1 suite / 5 tests; backend and
+storefront builds passed; and `git diff --check` passed. The backend build used
+Medusa's fake Redis fallback because no Redis URL is configured.
+
 ### Intentionally deferred
 
 - Durable email delivery and refund confirmation notifications.
