@@ -19,7 +19,7 @@ import {
 import { hasStoredCheckoutContact } from "./checkout-validation"
 import { getMedusaClient } from "./client"
 
-export const checkoutCartFields = "*items,*shipping_methods,*payment_collection,*payment_collection.payment_sessions,completed_at"
+export const checkoutCartFields = "region_id,email,currency_code,item_subtotal,item_tax_total,shipping_subtotal,shipping_tax_total,shipping_total,tax_total,subtotal,total,*shipping_address,*billing_address,*items,*shipping_methods,*payment_collection,*payment_collection.payment_sessions,completed_at"
 
 export type CheckoutCountry = {
   code: string

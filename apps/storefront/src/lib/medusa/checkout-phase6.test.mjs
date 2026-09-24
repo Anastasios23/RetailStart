@@ -1,4 +1,5 @@
 import assert from "node:assert/strict"
+import { readFile } from "node:fs/promises"
 import test from "node:test"
 
 import {
@@ -10,6 +11,32 @@ import {
   hasCurrentCheckoutTotals,
 } from "./checkout-presentation.ts"
 import { getCheckoutActionErrorMessage } from "./checkout-errors.ts"
+
+test("checkout cart projection includes the state needed for countries, address, and totals", async () => {
+  const source = await readFile(new URL("./checkout.ts", import.meta.url), "utf8")
+  const fieldsMatch = source.match(/export const checkoutCartFields = "([^"]+)"/)
+
+  assert.ok(fieldsMatch, "checkout cart fields must remain explicit")
+  const fields = fieldsMatch[1].split(",")
+
+  for (const field of [
+    "region_id",
+    "email",
+    "currency_code",
+    "item_subtotal",
+    "item_tax_total",
+    "shipping_subtotal",
+    "shipping_tax_total",
+    "shipping_total",
+    "tax_total",
+    "subtotal",
+    "total",
+    "*shipping_address",
+    "*billing_address",
+  ]) {
+    assert.ok(fields.includes(field), `checkout cart retrieval must request ${field}`)
+  }
+})
 
 function validFormData(overrides = {}) {
   const values = {
