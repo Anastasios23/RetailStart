@@ -112,7 +112,8 @@ function findStripePaymentSession(
 
 /**
  * Returns a current Stripe session only when its authoritative Medusa fields
- * still match the cart payment collection and it has client-safe data for the
+ * still match the cart total, payment collection, and session amounts and it has
+ * client-safe data for the
  * Payment Element.
  */
 export function getReusableStripePaymentSession(
@@ -140,8 +141,11 @@ export function getReusableStripePaymentSession(
   }
 
   if (
+    typeof cart.total !== "number" ||
+    !Number.isFinite(cart.total) ||
     !Number.isFinite(collection.amount) ||
     !Number.isFinite(session.amount) ||
+    cart.total !== collection.amount ||
     session.amount !== collection.amount
   ) {
     return null
