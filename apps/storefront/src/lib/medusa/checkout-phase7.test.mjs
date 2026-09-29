@@ -70,6 +70,7 @@ test("Stripe promise cache reuses one load result for repeated renders with the 
 
 function cartWithSession({
   amount = 3000,
+  cartTotal = amount,
   currencyCode = "eur",
   sessionAmount = amount,
   sessionCurrencyCode = currencyCode,
@@ -101,6 +102,7 @@ function cartWithSession({
   return {
     id: "cart_test",
     currency_code: currencyCode,
+    total: cartTotal,
     payment_collection: paymentCollection,
   }
 }
@@ -150,6 +152,16 @@ test("authorized and captured sessions require reconciliation, not initializatio
 
 test("pending session with a mismatched amount is not reused", () => {
   const cart = cartWithSession({ sessionAmount: 2999 })
+
+  assert.equal(getReusableStripePaymentSession(cart), null)
+  assert.deepEqual(classifyStripePaymentSession(cart), {
+    kind: "initialize",
+    reason: "stale",
+  })
+})
+
+test("pending session with matching collection and session amounts but stale cart total is not reused", () => {
+  const cart = cartWithSession({ amount: 3000, cartTotal: 3500 })
 
   assert.equal(getReusableStripePaymentSession(cart), null)
   assert.deepEqual(classifyStripePaymentSession(cart), {

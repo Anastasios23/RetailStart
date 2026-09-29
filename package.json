@@ -15,6 +15,8 @@
     "infra:media:up": "docker compose -f infra/docker-compose.yml --profile media up -d minio",
     "lint": "pnpm --filter @retail-starter/backend lint",
     "test": "pnpm --filter @retail-starter/backend test && pnpm --filter @retail-starter/storefront test",
+    "test:integration:http": "pnpm --filter @retail-starter/backend test:integration:http",
+    "ci:verify": "pnpm typecheck && pnpm lint && pnpm test && pnpm test:integration:http && pnpm build",
     "typecheck": "pnpm --filter @retail-starter/backend typecheck && pnpm --filter @retail-starter/storefront typecheck"
   },
   "devDependencies": {

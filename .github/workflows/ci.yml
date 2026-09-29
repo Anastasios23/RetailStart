@@ -1,0 +1,132 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    name: Core CI
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    env:
+      NODE_ENV: test
+      DATABASE_URL: postgres://retail_starter:retail_starter_local@127.0.0.1:5432/retail_starter_ci
+      DB_NAME: retail_starter_ci
+      STORE_CORS: http://localhost:8000
+      ADMIN_CORS: http://localhost:9000
+      AUTH_CORS: http://localhost:9000
+      JWT_SECRET: ci-jwt-secret-not-for-production
+      COOKIE_SECRET: ci-cookie-secret-not-for-production
+      SHUTDOWN_TIMEOUT_MS: "10000"
+      STRIPE_API_KEY: sk_test_ci_placeholder_not_for_stripe_api_calls
+      STRIPE_WEBHOOK_SECRET: whsec_ci_placeholder_not_for_stripe_webhooks
+      STRIPE_PAYMENT_METHOD_CONFIGURATION: pmc_ci000000000000000000000000
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22.23.2"
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.11.1
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Typecheck
+        run: pnpm typecheck
+
+      - name: Lint backend
+        run: pnpm lint
+
+      - name: Unit and storefront tests
+        run: pnpm test
+
+      - name: Build
+        run: pnpm build
+
+  integration-http:
+    name: Stripe-backed HTTP integration
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    if: >-
+      github.event_name == 'push' ||
+      (
+        github.event_name == 'pull_request' &&
+        github.event.pull_request.head.repo.full_name == github.repository &&
+        github.actor != 'dependabot[bot]'
+      )
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: retail_starter
+          POSTGRES_PASSWORD: retail_starter_local
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U retail_starter -d postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      NODE_ENV: test
+      DB_HOST: localhost
+      DB_PORT: 5432
+      DB_USERNAME: retail_starter
+      DB_PASSWORD: retail_starter_local
+      DB_WAITINGROOM_DATABASE: postgres
+      DATABASE_URL: postgres://retail_starter:retail_starter_local@localhost:5432/retail_starter_ci
+      DB_NAME: retail_starter_ci
+      STORE_CORS: http://localhost:8000
+      ADMIN_CORS: http://localhost:9000
+      AUTH_CORS: http://localhost:9000
+      JWT_SECRET: ci-jwt-secret-not-for-production
+      COOKIE_SECRET: ci-cookie-secret-not-for-production
+      SHUTDOWN_TIMEOUT_MS: "10000"
+      STRIPE_API_KEY: ${{ secrets.STRIPE_API_KEY }}
+      STRIPE_WEBHOOK_SECRET: ${{ secrets.STRIPE_WEBHOOK_SECRET }}
+      STRIPE_PAYMENT_METHOD_CONFIGURATION: ${{ secrets.STRIPE_PAYMENT_METHOD_CONFIGURATION }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22.23.2"
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.11.1
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Require Stripe test-mode repository secrets
+        run: |
+          test -n "$STRIPE_API_KEY" || (echo "Missing STRIPE_API_KEY repository secret" && exit 1)
+          test -n "$STRIPE_WEBHOOK_SECRET" || (echo "Missing STRIPE_WEBHOOK_SECRET repository secret" && exit 1)
+          test -n "$STRIPE_PAYMENT_METHOD_CONFIGURATION" || (echo "Missing STRIPE_PAYMENT_METHOD_CONFIGURATION repository secret" && exit 1)
+
+      - name: Backend HTTP integration tests
+        run: pnpm test:integration:http
