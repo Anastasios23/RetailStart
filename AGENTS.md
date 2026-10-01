@@ -37,3 +37,19 @@ manifests; Phase 1 validation uses `pnpm install`, `pnpm typecheck`, and
 ## Commit Attribution
 
 `TBD` — no project-specific commit attribution convention has been decided.
+
+## Subagent orchestration
+
+- Use subagents only when the task benefits from bounded, independent work; do not spawn them by default.
+- Keep the primary thread focused on requirements, decisions, coordination, and final synthesis.
+- Prefer parallel delegation for read-heavy work such as codebase exploration, documentation research, test/log triage, and summarization.
+- Avoid parallel write-heavy agents against the same working tree or files. Prefer one implementation writer at a time unless the work is explicitly isolated.
+- Use `code_mapper` when the relevant ownership or execution path is unclear. It is read-only and should return concise evidence rather than implementation.
+- Use `docs_researcher` when behavior depends on current framework, library, API, or provider documentation. It is read-only and should return primary-source references where available.
+- Use the built-in `worker` for focused implementation or fixes after the required behavior and approach are understood.
+- Spawn `architect` as a read-only reviewer:
+  - before committing to a large or architecture-sensitive implementation plan;
+  - when the same error or failure returns after an attempted fix;
+  - before declaring substantial or long-running work complete.
+- Wait for relevant delegated read-only work and synthesize its findings before starting dependent implementation.
+- Subagents must respect the parent session's permissions and the repository's existing scope, architecture, and `TBD` rules.
