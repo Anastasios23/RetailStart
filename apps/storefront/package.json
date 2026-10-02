@@ -7,7 +7,7 @@
     "dev": "next dev -p 8000",
     "build": "next build",
     "start": "next start -p 8000",
-    "test": "node --experimental-strip-types --test src/lib/medusa/cart-phase5.test.mjs src/lib/medusa/checkout-phase6.test.mjs src/lib/medusa/checkout-phase7.test.mjs",
+    "test": "node --experimental-strip-types --test src/lib/medusa/cart-phase5.test.mjs src/lib/medusa/checkout-phase6.test.mjs src/lib/medusa/checkout-phase7.test.mjs src/lib/medusa/product-variants.test.mjs",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

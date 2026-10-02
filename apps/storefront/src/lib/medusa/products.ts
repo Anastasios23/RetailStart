@@ -2,6 +2,9 @@ import type { HttpTypes } from "@medusajs/types"
 
 import { getMedusaClient, getMedusaPricingContext } from "./client"
 
+export { getCalculatedPrice, getInventoryStatus } from "./product-variants"
+export type { InventoryStatus } from "./product-variants"
+
 export const productFields =
   "*variants.calculated_price,+variants.inventory_quantity"
 
@@ -52,50 +55,4 @@ export function getPrimaryVariant(
   product: HttpTypes.StoreProduct
 ): HttpTypes.StoreProductVariant | undefined {
   return product.variants?.[0]
-}
-
-export function getCalculatedPrice(
-  variant: HttpTypes.StoreProductVariant | undefined
-) {
-  const calculatedPrice = variant?.calculated_price
-  const amount =
-    calculatedPrice?.calculated_amount_with_tax ?? calculatedPrice?.calculated_amount
-  const currencyCode = calculatedPrice?.currency_code
-
-  if (
-    amount === null ||
-    amount === undefined ||
-    !Number.isFinite(amount) ||
-    !currencyCode
-  ) {
-    return null
-  }
-
-  return {
-    amount,
-    currencyCode,
-  }
-}
-
-export type InventoryStatus =
-  | "in_stock"
-  | "out_of_stock"
-  | "unavailable"
-
-export function getInventoryStatus(
-  variant: HttpTypes.StoreProductVariant | undefined
-): InventoryStatus {
-  if (!variant) {
-    return "unavailable"
-  }
-
-  if (variant.manage_inventory === false) {
-    return "in_stock"
-  }
-
-  if (variant.inventory_quantity === null || variant.inventory_quantity === undefined) {
-    return "unavailable"
-  }
-
-  return variant.inventory_quantity > 0 ? "in_stock" : "out_of_stock"
 }
