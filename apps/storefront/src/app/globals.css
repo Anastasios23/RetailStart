@@ -72,6 +72,8 @@ h2 {
 
 .site-header__nav {
   display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
   gap: 1rem;
   margin: 0;
   padding: 0;
@@ -827,4 +829,21 @@ button:disabled {
   .checkout-field--wide {
     grid-column: auto;
   }
+}
+
+.category-list {
+  display: grid;
+  gap: 1rem;
+  padding: 0;
+  list-style: none;
+}
+
+.category-list a {
+  display: inline-flex;
+  align-items: center;
+  overflow-wrap: anywhere;
+}
+
+.category-list p {
+  color: var(--muted);
 }

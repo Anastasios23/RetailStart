@@ -23,7 +23,7 @@ function logCatalogReadFailure(operation: string, error: unknown) {
 }
 
 async function listStoreProducts(
-  query: Pick<HttpTypes.StoreProductListParams, "handle"> = {}
+  query: Pick<HttpTypes.StoreProductListParams, "handle" | "category_id"> = {}
 ) {
   const client = getMedusaClient()
   const pricingContext = getMedusaPricingContext()
@@ -43,6 +43,11 @@ async function listStoreProducts(
 
 export async function listProducts() {
   const response = await listStoreProducts()
+  return response.products
+}
+
+export async function listProductsByCategory(categoryId: string) {
+  const response = await listStoreProducts({ category_id: [categoryId] })
   return response.products
 }
 
