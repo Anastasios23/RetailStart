@@ -2,6 +2,12 @@
 
 ## Status and approach
 
+> **Current status:** Phases 1-7 are implemented (Medusa/PostgreSQL baseline,
+> catalog, persistent cart, guest checkout, Stripe test-mode payment, and
+> authoritative order confirmation/reconciliation). V1 is not complete; Phases
+> 8-17 remain planned/incomplete. The phase sections below are retained as the
+> plan and implementation record.
+
 This plan is derived from the accepted architecture baseline in
 `docs/architecture.md`, the approved ADR index, and `docs/scope-v1.md`. It is a
 dependency-ordered implementation plan. The initial framework, runtime, and
