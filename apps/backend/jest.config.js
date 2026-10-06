@@ -14,6 +14,9 @@ module.exports = {
   },
   testEnvironment: "node",
   moduleFileExtensions: ["js", "ts", "json"],
+  // Discover tests only in source trees so generated copies under
+  // .medusa/server are never picked up, regardless of path separators.
+  roots: ["<rootDir>/src", "<rootDir>/integration-tests"],
   modulePathIgnorePatterns: ["dist/", "<rootDir>/.medusa/"],
   setupFiles: ["./integration-tests/setup.js"],
 };
