@@ -72,11 +72,14 @@ V1 does not include dedicated reporting or analytics functionality. The admin in
 
 ## Current phase
 
-Phase 2 local infrastructure: the pnpm workspace, minimal Next.js storefront,
-pinned Medusa backend baseline, isolated local PostgreSQL, optional local
-object storage reserved for the later media phase, and backend health/readiness
-foundations are installed. Provider wiring and commerce implementation remain
-deferred; the default runtime path uses PostgreSQL only.
+Implemented through Phase 7 of `docs/implementation-plan.md`: the pnpm
+workspace, the Medusa/PostgreSQL commerce baseline, catalog browsing (products,
+variants, categories), a persistent cart, guest checkout, a Stripe test-mode
+payment flow, and authoritative order confirmation and reconciliation.
+
+V1 is not complete. Phases 8-17 (notifications, fulfillment and refunds, media,
+bulk onboarding, observability, deployment, backup and recovery, client
+presentation, privacy, and production readiness) remain planned/incomplete.
 
 ## Deployment model
 

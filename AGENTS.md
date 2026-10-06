@@ -20,9 +20,9 @@
 
 ## Current project state
 
-- Phase 1 application scaffolding is present under `apps/backend` and `apps/storefront`.
+- Phases 1-7 are implemented under `apps/backend` and `apps/storefront`: Medusa/PostgreSQL baseline, catalog (products, variants, categories), persistent cart, guest checkout, Stripe test-mode payment, and authoritative order confirmation/reconciliation. V1 is not complete; Phases 8-17 remain planned/incomplete (see `docs/implementation-plan.md`).
 - The workspace uses pnpm `10.11.1` and Node.js `22.23.2`; package versions and commands are recorded in the manifests and implementation plan.
-- PostgreSQL, payment, email, object-storage, deployment, and other provider configuration remain deferred until the relevant phase is approved.
+- Email, object-storage, deployment, and other provider configuration for Phases 8-17 remain deferred until the relevant phase is approved.
 
 ## Package Manager
 
