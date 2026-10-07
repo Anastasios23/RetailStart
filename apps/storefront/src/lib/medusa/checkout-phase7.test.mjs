@@ -4,8 +4,10 @@ import { createKeyedPromiseCache } from "../../app/components/stripe-promise-cac
 
 import {
   canClearCartForResult,
+  canFinalizePaidPaymentSession,
   classifyStripePaymentSession,
   getReusableStripePaymentSession,
+  isReturnUrlCompletableSessionStatus,
   isSuccessfulAutomaticPayment,
   isRecoverablePaymentFailure,
   lockPaymentAttempt,
@@ -13,6 +15,7 @@ import {
   mapPaymentSessionState,
   projectCheckoutConfirmation,
   projectStripePaymentSession,
+  shouldAllowStripePaymentConfirmation,
   STRIPE_PROVIDER_ID,
 } from "./checkout-payment.ts"
 
@@ -77,26 +80,26 @@ function cartWithSession({
   sessionStatus = "pending",
   clientSecret = "client-secret-placeholder",
   sessionCollectionId,
+  paymentSessions,
 } = {}) {
+  const defaultSession = {
+    id: "paysess_test",
+    amount: sessionAmount,
+    currency_code: sessionCurrencyCode,
+    provider_id: STRIPE_PROVIDER_ID,
+    status: sessionStatus,
+    data: clientSecret ? { client_secret: clientSecret } : {},
+    ...(sessionCollectionId
+      ? { payment_collection: { id: sessionCollectionId } }
+      : {}),
+  }
   const paymentCollection = {
     id: "paycol_test",
     amount,
     currency_code: currencyCode,
     status: "not_paid",
     payment_providers: [{ id: STRIPE_PROVIDER_ID }],
-    payment_sessions: [
-      {
-        id: "paysess_test",
-        amount: sessionAmount,
-        currency_code: sessionCurrencyCode,
-        provider_id: STRIPE_PROVIDER_ID,
-        status: sessionStatus,
-        data: clientSecret ? { client_secret: clientSecret } : {},
-        ...(sessionCollectionId
-          ? { payment_collection: { id: sessionCollectionId } }
-          : {}),
-      },
-    ],
+    payment_sessions: paymentSessions ?? [defaultSession],
   }
 
   return {
@@ -148,6 +151,181 @@ test("authorized and captured sessions require reconciliation, not initializatio
     assert.equal(decision.kind, "reconcile")
     assert.equal(decision.status, sessionStatus)
   }
+})
+
+test("matching authorized or captured session exposes a finalize-only path", () => {
+  for (const sessionStatus of ["authorized", "captured"]) {
+    const cart = cartWithSession({ sessionStatus })
+
+    assert.equal(canFinalizePaidPaymentSession(cart), true)
+  }
+})
+
+test("authorized or captured session with a stale amount cannot finalize", () => {
+  for (const sessionStatus of ["authorized", "captured"]) {
+    const cart = cartWithSession({ sessionStatus, sessionAmount: 2999 })
+
+    assert.equal(classifyStripePaymentSession(cart).kind, "reconcile")
+    assert.equal(canFinalizePaidPaymentSession(cart), false)
+  }
+})
+
+test("authorized or captured session with a stale cart total cannot finalize", () => {
+  const cart = cartWithSession({
+    sessionStatus: "authorized",
+    amount: 3000,
+    cartTotal: 3500,
+  })
+
+  assert.equal(classifyStripePaymentSession(cart).kind, "reconcile")
+  assert.equal(canFinalizePaidPaymentSession(cart), false)
+})
+
+test("authorized or captured session with a mismatched currency cannot finalize", () => {
+  const cart = cartWithSession({
+    sessionStatus: "captured",
+    sessionCurrencyCode: "usd",
+  })
+
+  assert.equal(classifyStripePaymentSession(cart).kind, "reconcile")
+  assert.equal(canFinalizePaidPaymentSession(cart), false)
+})
+
+test("pending_authorization stays a waiting state without finalize-only completion", () => {
+  const cart = cartWithSession({ sessionStatus: "pending_authorization" })
+  const decision = classifyStripePaymentSession(cart)
+
+  assert.equal(decision.kind, "reconcile")
+  assert.equal(decision.status, "pending_authorization")
+  assert.equal(canFinalizePaidPaymentSession(cart), false)
+})
+
+test("return-URL completion may resume pending or requires_more sessions only", () => {
+  assert.equal(isReturnUrlCompletableSessionStatus("pending"), true)
+  assert.equal(isReturnUrlCompletableSessionStatus("requires_more"), true)
+  assert.equal(isReturnUrlCompletableSessionStatus("authorized"), false)
+  assert.equal(isReturnUrlCompletableSessionStatus("captured"), false)
+  assert.equal(isReturnUrlCompletableSessionStatus("pending_authorization"), false)
+  assert.equal(isReturnUrlCompletableSessionStatus("error"), false)
+  assert.equal(isReturnUrlCompletableSessionStatus("canceled"), false)
+})
+
+test("completion error after successful Stripe payment blocks confirmPayment and blind cart.complete", () => {
+  assert.equal(
+    shouldAllowStripePaymentConfirmation({
+      paymentAlreadySucceeded: false,
+      needsAuthoritativeRefresh: false,
+    }),
+    true
+  )
+  assert.equal(
+    shouldAllowStripePaymentConfirmation({
+      paymentAlreadySucceeded: true,
+      needsAuthoritativeRefresh: false,
+    }),
+    false
+  )
+  assert.equal(
+    shouldAllowStripePaymentConfirmation({
+      paymentAlreadySucceeded: true,
+      needsAuthoritativeRefresh: true,
+    }),
+    false
+  )
+  assert.equal(
+    shouldAllowStripePaymentConfirmation({
+      paymentAlreadySucceeded: false,
+      needsAuthoritativeRefresh: true,
+    }),
+    false
+  )
+})
+
+test("recovery after completion failure requires refreshed authoritative paid session state", () => {
+  const staleAuthorized = cartWithSession({
+    sessionStatus: "authorized",
+    sessionAmount: 2999,
+  })
+  const matchingAuthorized = cartWithSession({ sessionStatus: "authorized" })
+  const refreshedPending = cartWithSession({ sessionStatus: "pending" })
+
+  assert.equal(canFinalizePaidPaymentSession(staleAuthorized), false)
+  assert.equal(canFinalizePaidPaymentSession(matchingAuthorized), true)
+  assert.equal(classifyStripePaymentSession(refreshedPending).kind, "reuse")
+  assert.equal(canFinalizePaidPaymentSession(refreshedPending), false)
+})
+
+test("completion lock still serializes concurrent complete attempts before refresh", () => {
+  const completionInFlight = { current: false }
+
+  assert.equal(lockPaymentAttempt(completionInFlight), true)
+  assert.equal(lockPaymentAttempt(completionInFlight), false)
+
+  unlockPaymentAttempt(completionInFlight)
+
+  assert.equal(lockPaymentAttempt(completionInFlight), true)
+})
+
+test("storefront selects the last matching Stripe session like the backend", () => {
+  const cart = cartWithSession({
+    paymentSessions: [
+      {
+        id: "paysess_canceled",
+        amount: 3000,
+        currency_code: "eur",
+        provider_id: STRIPE_PROVIDER_ID,
+        status: "canceled",
+        data: { client_secret: "stale-secret" },
+      },
+      {
+        id: "paysess_current",
+        amount: 3000,
+        currency_code: "eur",
+        provider_id: STRIPE_PROVIDER_ID,
+        status: "pending",
+        data: { client_secret: "current-secret" },
+      },
+    ],
+  })
+
+  const session = getReusableStripePaymentSession(cart)
+  const decision = classifyStripePaymentSession(cart)
+
+  assert.equal(session?.id, "paysess_current")
+  assert.equal(session?.status, "pending")
+  assert.deepEqual(decision, {
+    kind: "reuse",
+    session,
+  })
+})
+
+test("classify follows the last Stripe session when an earlier canceled session exists", () => {
+  const cart = cartWithSession({
+    paymentSessions: [
+      {
+        id: "paysess_old_pending",
+        amount: 3000,
+        currency_code: "eur",
+        provider_id: STRIPE_PROVIDER_ID,
+        status: "canceled",
+        data: {},
+      },
+      {
+        id: "paysess_authorized",
+        amount: 3000,
+        currency_code: "eur",
+        provider_id: STRIPE_PROVIDER_ID,
+        status: "authorized",
+        data: { client_secret: "authorized-secret" },
+      },
+    ],
+  })
+  const decision = classifyStripePaymentSession(cart)
+
+  assert.equal(decision.kind, "reconcile")
+  assert.equal(decision.status, "authorized")
+  assert.equal(decision.session.id, "paysess_authorized")
+  assert.equal(canFinalizePaidPaymentSession(cart), true)
 })
 
 test("pending session with a mismatched amount is not reused", () => {
