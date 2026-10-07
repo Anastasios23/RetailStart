@@ -1249,7 +1249,14 @@ key's sales-channel scope, follows the authoritative `order_cart` link, and
 returns only display reference, currency, and total. Checkout and confirmation
 now retrieve this projection from Medusa; URL parameters are no longer treated
 as confirmation evidence. The continuity cookie is cleared only after a
-second authoritative lookup matches the confirmation currently displayed. The
+second authoritative lookup of the completed order for the cookie's cart
+succeeds. Checkout and other business mutations remain same-origin Server
+Actions; the one exception is a same-origin POST Route Handler
+(`/checkout/confirmation/clear`) that clears the verified completed-cart
+continuity cookie without re-rendering the confirmation page (a cookie change in
+a Server Action re-renders the page, which previously turned the confirmed page
+into a 404). The handler requires a matching `Origin`, accepts no body, and
+retains the cookie if the lookup fails. The
 payment-session preparation route also rejects completed carts before running
 the preparation workflow. If the confirmation-page lookup fails temporarily,
 the page keeps the cart and offers a retry through `/checkout` without inviting

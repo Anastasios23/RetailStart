@@ -21,7 +21,8 @@ export function createModuleLoader(baseUrl, { console = globalThis.console } = {
       if (name.startsWith(".")) throw new Error(`Unstubbed dependency: ${name}`)
       return localRequire(name)
     }
-    vm.runInNewContext(outputText, { module, exports: module.exports, require, console }, { filename })
+    // `URL` is the only web global exposed, for modules that parse URLs/origins.
+    vm.runInNewContext(outputText, { module, exports: module.exports, require, console, URL }, { filename })
     return module.exports
   }
 }
