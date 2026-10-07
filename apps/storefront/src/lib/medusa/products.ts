@@ -56,7 +56,7 @@ async function listStoreProducts(
 
 // Missing, malformed, zero, negative, or unsafe values fall back to page 1.
 export function parsePageParam(value: string | string[] | undefined) {
-  if (typeof value !== "string" || !/^[1-9]d*$/.test(value)) return 1
+  if (typeof value !== "string" || !/^[1-9]\d*$/.test(value)) return 1
   const page = Number(value)
   return Number.isSafeInteger(page) ? page : 1
 }

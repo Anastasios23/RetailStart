@@ -36,6 +36,9 @@ test("page param: missing, malformed, zero, negative and unsafe values fall back
   }
   assert.equal(products.parsePageParam("1"), 1)
   assert.equal(products.parsePageParam("7"), 7)
+  assert.equal(products.parsePageParam("10"), 10)
+  assert.equal(products.parsePageParam("11"), 11)
+  assert.equal(products.parsePageParam("250"), 250)
 })
 
 test("more than 100 products are all reachable through pages without duplicates or gaps", async () => {
@@ -116,6 +119,7 @@ test("pagination links: Previous/Next, Page X of Y, page 1 omits the query", () 
 test("listing pages: invalid page shows page 1, valid page past the end is not found", async () => {
   const b = boundary(catalog(30))
   const empty = boundary([])
+  const large = boundary(catalog(250))
   const grid = ({ products }) => React.createElement("p", null, `grid:${products.length}`)
   const pagination = load("../../app/components/pagination.tsx", { "next/link": { default: Link } })
   const notFound = () => { throw new Error("NEXT_NOT_FOUND") }
@@ -128,6 +132,17 @@ test("listing pages: invalid page shows page 1, valid page past the end is not f
   assert.match(html, /Page 1 of 2/)
   assert.match(markup(await productsPage({ searchParams: Promise.resolve({ page: "2" }) })), /grid:6/)
   await assert.rejects(productsPage({ searchParams: Promise.resolve({ page: "3" }) }), /NEXT_NOT_FOUND/)
+  const largePage = load("../../app/products/page.tsx", {
+    "next/navigation": { notFound }, "../../lib/medusa/products": large.products,
+    "../components/pagination": pagination, "../components/product-grid": { ProductGrid: grid },
+  }).default
+  for (const page of ["9", "10", "11"]) {
+    const html = markup(await largePage({ searchParams: Promise.resolve({ page }) }))
+    assert.match(html, new RegExp(`Page ${page} of 11`))
+    assert.equal(large.queries.at(-1).offset, (Number(page) - 1) * 24)
+  }
+  assert.match(markup(await largePage({ searchParams: Promise.resolve({ page: "9" }) })), /href="\/products\?page=10"/)
+  await assert.rejects(largePage({ searchParams: Promise.resolve({ page: "12" }) }), /NEXT_NOT_FOUND/)
   const emptyProductsPage = load("../../app/products/page.tsx", {
     "next/navigation": { notFound }, "../../lib/medusa/products": empty.products,
     "../components/pagination": pagination, "../components/product-grid": { ProductGrid: grid },
