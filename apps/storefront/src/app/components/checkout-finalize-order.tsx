@@ -3,7 +3,7 @@
 import { useActionState, useEffect, useRef, useState, useTransition } from "react"
 import { useRouter } from "next/navigation"
 
-import { completeCheckoutAction } from "../actions/checkout-actions"
+import { finalizeCheckoutAction } from "../actions/checkout-actions"
 import {
   initialCheckoutActionState,
   type CheckoutActionState,
@@ -53,7 +53,8 @@ type CheckoutFinalizeOrderProps = {
 }
 
 /**
- * Finalize-only path: calls completeCheckoutAction / cart.complete.
+ * Finalize-only path: calls finalizeCheckoutAction, which re-checks the freshly
+ * read cart with canFinalizePaidPaymentSession before cart.complete.
  * Must never mount Payment Element or call stripe.confirmPayment.
  * After a failed complete, require an authoritative checkout refresh before any
  * further finalize attempt — Medusa may have compensated the prior payment.
@@ -67,7 +68,7 @@ export function CheckoutFinalizeOrder({
 }: CheckoutFinalizeOrderProps) {
   const router = useRouter()
   const [state, formAction, actionPending] = useActionState<CheckoutActionState, FormData>(
-    completeCheckoutAction,
+    finalizeCheckoutAction,
     initialCheckoutActionState
   )
   const [isTransitionPending, startTransition] = useTransition()

@@ -13,6 +13,7 @@ import {
 import { getMedusaClient } from "../../lib/medusa/client"
 import {
   canClearCartForResult,
+  canFinalizePaidPaymentSession,
   projectCheckoutConfirmation,
   type CheckoutConfirmation,
 } from "../../lib/medusa/checkout-payment"
@@ -141,10 +142,9 @@ export async function selectShippingMethodAction(
   }
 }
 
-export async function completeCheckoutAction(
-  _previousState: CheckoutActionState,
-  _formData: FormData
-): Promise<CheckoutActionState> {
+// Shared completion. `finalizeOnly` re-checks, on the cart read at completion
+// time, that the paid Stripe session still matches the cart before cart.complete.
+async function completeCheckout(finalizeOnly: boolean): Promise<CheckoutActionState> {
   const cartId = await readCartId()
 
   if (!cartId) {
@@ -167,6 +167,15 @@ export async function completeCheckoutAction(
       return {
         status: "error",
         message: "Finish the contact, address, and shipping steps before paying.",
+        paymentState: "pending",
+      }
+    }
+
+    if (finalizeOnly && !canFinalizePaidPaymentSession(cart)) {
+      return {
+        status: "error",
+        message:
+          "Your payment session changed and can no longer be finalized. Refresh checkout so the current payment state can be reconciled.",
         paymentState: "pending",
       }
     }
@@ -197,6 +206,23 @@ export async function completeCheckoutAction(
       paymentState: "pending",
     }
   }
+}
+
+// Normal completion, used right after a successful Stripe confirmPayment.
+export async function completeCheckoutAction(
+  _previousState: CheckoutActionState,
+  _formData: FormData
+): Promise<CheckoutActionState> {
+  return completeCheckout(false)
+}
+
+// Finalize-only completion for an already authorized/captured session; requires
+// the freshly read cart to still pass canFinalizePaidPaymentSession.
+export async function finalizeCheckoutAction(
+  _previousState: CheckoutActionState,
+  _formData: FormData
+): Promise<CheckoutActionState> {
+  return completeCheckout(true)
 }
 
 export async function clearCompletedCartAction(
