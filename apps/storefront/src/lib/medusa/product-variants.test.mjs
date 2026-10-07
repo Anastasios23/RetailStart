@@ -1,12 +1,7 @@
 import assert from "node:assert/strict"
-import { readFileSync } from "node:fs"
-import { createRequire } from "node:module"
-import { fileURLToPath } from "node:url"
-import vm from "node:vm"
 import test from "node:test"
 import React from "react"
 import { renderToStaticMarkup } from "react-dom/server"
-import ts from "typescript"
 
 import {
   getAutomaticVariant,
@@ -19,27 +14,9 @@ import {
 import { getIdentifier, getPositiveSafeInteger } from "./cart-validation.ts"
 import * as cartErrors from "./cart-errors.ts"
 import { formatMoney } from "../money.ts"
+import { createModuleLoader } from "./test-support/load-module.mjs"
 
-const localRequire = createRequire(import.meta.url)
-
-// Exercise the production TS/TSX with controlled framework/IO boundaries.
-// Transpilation is in memory; no production test seams or emitted files.
-function loadModule(relativePath, dependencies = {}) {
-  const filename = fileURLToPath(new URL(relativePath, import.meta.url))
-  const source = readFileSync(filename, "utf8")
-  const { outputText } = ts.transpileModule(source, {
-    fileName: filename,
-    compilerOptions: { module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX },
-  })
-  const module = { exports: {} }
-  const require = (name) => {
-    if (Object.hasOwn(dependencies, name)) return dependencies[name]
-    if (name.startsWith(".")) throw new Error(`Unstubbed dependency: ${name}`)
-    return localRequire(name)
-  }
-  vm.runInNewContext(outputText, { module, exports: module.exports, require, console }, { filename })
-  return module.exports
-}
+const loadModule = createModuleLoader(import.meta.url)
 
 function variant(id, size, color, overrides = {}) {
   return {

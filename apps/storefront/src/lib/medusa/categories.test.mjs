@@ -1,30 +1,12 @@
 import assert from "node:assert/strict"
-import { readFileSync } from "node:fs"
-import { createRequire } from "node:module"
-import { fileURLToPath } from "node:url"
-import vm from "node:vm"
 import test from "node:test"
 import React from "react"
 import { renderToStaticMarkup } from "react-dom/server"
-import ts from "typescript"
 import * as variants from "./product-variants.ts"
 import { formatMoney } from "../money.ts"
+import { createModuleLoader } from "./test-support/load-module.mjs"
 
-const localRequire = createRequire(import.meta.url)
-function load(relativePath, dependencies = {}) {
-  const filename = fileURLToPath(new URL(relativePath, import.meta.url))
-  const { outputText } = ts.transpileModule(readFileSync(filename, "utf8"), {
-    fileName: filename, compilerOptions: { module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX },
-  })
-  const module = { exports: {} }
-  const require = (name) => {
-    if (Object.hasOwn(dependencies, name)) return dependencies[name]
-    if (name.startsWith(".")) throw new Error(`Unstubbed dependency: ${name}`)
-    return localRequire(name)
-  }
-  vm.runInNewContext(outputText, { module, exports: module.exports, require, console: { error() {} } }, { filename })
-  return module.exports
-}
+const load = createModuleLoader(import.meta.url, { console: { error() {} } })
 const Link = ({ children, ...props }) => React.createElement("a", props, children)
 const category = (id, handle = id, overrides = {}) => ({ id, handle, name: `Category ${id}`, parent_category_id: null, ...overrides })
 const product = (id, categories = []) => ({ id, handle: id, title: `Product ${id}`, categories, variants: [{
