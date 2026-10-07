@@ -105,9 +105,91 @@ function normalizeCurrencyCode(currencyCode: string): string {
 function findStripePaymentSession(
   cart: HttpTypes.StoreCart
 ): HttpTypes.StorePaymentSession | undefined {
-  return cart.payment_collection?.payment_sessions?.find(
+  // Match the backend ensure-cart-payment-session rule: when multiple Stripe
+  // sessions exist, the latest entry in the collection is authoritative.
+  const sessions = cart.payment_collection?.payment_sessions?.filter(
     (session) => session.provider_id === STRIPE_PROVIDER_ID
   )
+
+  return sessions?.at(-1)
+}
+
+function hasMatchingCartPaymentAmounts(
+  cart: HttpTypes.StoreCart,
+  collection: NonNullable<HttpTypes.StoreCart["payment_collection"]>,
+  session: HttpTypes.StorePaymentSession
+): boolean {
+  if (
+    typeof cart.total !== "number" ||
+    !Number.isFinite(cart.total) ||
+    !Number.isFinite(collection.amount) ||
+    !Number.isFinite(session.amount) ||
+    cart.total !== collection.amount ||
+    session.amount !== collection.amount
+  ) {
+    return false
+  }
+
+  const collectionCurrency = normalizeCurrencyCode(collection.currency_code)
+  const cartCurrency = normalizeCurrencyCode(cart.currency_code)
+  const sessionCurrency = normalizeCurrencyCode(session.currency_code)
+
+  return Boolean(
+    collectionCurrency &&
+      cartCurrency &&
+      sessionCurrency &&
+      collectionCurrency === cartCurrency &&
+      sessionCurrency === collectionCurrency
+  )
+}
+
+/**
+ * Authorized/captured may be finalized only when the last Stripe session still
+ * matches the authoritative cart total/currency. Status alone is insufficient
+ * because Medusa can compensate/refund and recreate sessions after a failed
+ * cart.complete.
+ */
+export function canFinalizePaidPaymentSession(cart: HttpTypes.StoreCart): boolean {
+  const collection = cart.payment_collection
+  const session = findStripePaymentSession(cart)
+
+  if (!collection || !session) {
+    return false
+  }
+
+  if (
+    session.payment_collection &&
+    session.payment_collection.id !== collection.id
+  ) {
+    return false
+  }
+
+  if (session.status !== "authorized" && session.status !== "captured") {
+    return false
+  }
+
+  return hasMatchingCartPaymentAmounts(cart, collection, session)
+}
+
+/**
+ * Return-URL recovery may resume only while the Medusa session is still a
+ * reusable Stripe client session. Authorized/captured carts use the
+ * finalize-only checkout path instead of remounting Payment Element.
+ */
+export function isReturnUrlCompletableSessionStatus(status: string): boolean {
+  return status === "pending" || status === "requires_more"
+}
+
+/**
+ * After Stripe succeeds (or completion fails and refresh is required), the
+ * browser must not call confirmPayment again. A later cart.complete is only
+ * allowed after an authoritative checkout refresh proves the current session.
+ */
+export function shouldAllowStripePaymentConfirmation(input: {
+  paymentAlreadySucceeded: boolean
+  needsAuthoritativeRefresh: boolean
+}): boolean {
+  return !input.paymentAlreadySucceeded && !input.needsAuthoritativeRefresh
 }
 
 /**
@@ -140,28 +222,7 @@ export function getReusableStripePaymentSession(
     return null
   }
 
-  if (
-    typeof cart.total !== "number" ||
-    !Number.isFinite(cart.total) ||
-    !Number.isFinite(collection.amount) ||
-    !Number.isFinite(session.amount) ||
-    cart.total !== collection.amount ||
-    session.amount !== collection.amount
-  ) {
-    return null
-  }
-
-  const collectionCurrency = normalizeCurrencyCode(collection.currency_code)
-  const cartCurrency = normalizeCurrencyCode(cart.currency_code)
-  const sessionCurrency = normalizeCurrencyCode(session.currency_code)
-
-  if (
-    !collectionCurrency ||
-    !cartCurrency ||
-    !sessionCurrency ||
-    collectionCurrency !== cartCurrency ||
-    sessionCurrency !== collectionCurrency
-  ) {
+  if (!hasMatchingCartPaymentAmounts(cart, collection, session)) {
     return null
   }
 

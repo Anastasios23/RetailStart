@@ -11,6 +11,7 @@ import { useActionState, useCallback, useEffect, useRef, useState, useTransition
 import type { FormEvent } from "react"
 import { useRouter } from "next/navigation"
 import { createKeyedPromiseCache } from "./stripe-promise-cache"
+import { CheckoutConfirmationView } from "./checkout-finalize-order"
 
 import {
   completeCheckoutAction,
@@ -23,19 +24,24 @@ import {
   mapPaymentSessionState,
   isSuccessfulAutomaticPayment,
   isRecoverablePaymentFailure,
+  isReturnUrlCompletableSessionStatus,
   lockPaymentAttempt,
   unlockPaymentAttempt,
-  type CheckoutConfirmation,
+  shouldAllowStripePaymentConfirmation,
   type CheckoutPaymentProjection,
 } from "../../lib/medusa/checkout-payment"
-import { formatMoney } from "../../lib/money"
 
 type StripePaymentFormProps = {
   payment: CheckoutPaymentProjection
   publishableKey: string | null
 }
 
-type PaymentPhase = "idle" | "confirming" | "pending" | "completing"
+type PaymentPhase =
+  | "idle"
+  | "confirming"
+  | "pending"
+  | "completing"
+  | "needs_refresh"
 
 const getStripePromise = createKeyedPromiseCache((publishableKey: string) =>
   loadStripe(publishableKey)
@@ -53,34 +59,6 @@ function browserPaymentError(error: { type?: string; code?: string } | undefined
   return "We could not confirm the payment yet. Your cart remains available; please try again."
 }
 
-function ConfirmationState({ confirmation }: { confirmation: CheckoutConfirmation }) {
-  const reference = confirmation.customDisplayId || confirmation.displayId
-
-  return (
-    <section className="checkout-section checkout-confirmation" aria-labelledby="checkout-confirmation-title">
-      <p className="eyebrow">Payment complete</p>
-      <h2 id="checkout-confirmation-title">Thank you for your order.</h2>
-      <p>Your payment was captured and Medusa confirmed the order.</p>
-      <dl className="checkout-confirmation__facts">
-        {reference !== undefined ? (
-          <div>
-            <dt>Reference</dt>
-            <dd>{reference}</dd>
-          </div>
-        ) : null}
-        <div>
-          <dt>Total</dt>
-          <dd>{formatMoney(confirmation.total, confirmation.currencyCode, "en-CY")}</dd>
-        </div>
-        <div>
-          <dt>Currency</dt>
-          <dd>{confirmation.currencyCode.toUpperCase()}</dd>
-        </div>
-      </dl>
-    </section>
-  )
-}
-
 function PaymentFormInner({ payment }: { payment: CheckoutPaymentProjection }) {
   const stripe = useStripe()
   const elements = useElements()
@@ -92,10 +70,17 @@ function PaymentFormInner({ payment }: { payment: CheckoutPaymentProjection }) {
   const [phase, setPhase] = useState<PaymentPhase>("idle")
   const [browserMessage, setBrowserMessage] = useState<string | undefined>()
   const [isTransitionPending, startTransition] = useTransition()
-  const completionStarted = useRef(false)
+  const completionInFlight = useRef(false)
   const paymentAttemptStarted = useRef(false)
+  const paymentAlreadySucceeded = useRef(false)
+  const needsAuthoritativeRefresh = phase === "needs_refresh"
   const completionPending = actionPending || isTransitionPending || phase === "completing"
-  const paymentFormDisabled = completionPending || phase === "confirming" || phase === "pending"
+  const paymentFormDisabled =
+    completionPending ||
+    phase === "confirming" ||
+    phase === "pending" ||
+    needsAuthoritativeRefresh ||
+    paymentAlreadySucceeded.current
 
   useEffect(() => {
     if (!state.confirmation) {
@@ -105,19 +90,35 @@ function PaymentFormInner({ payment }: { payment: CheckoutPaymentProjection }) {
     router.replace("/checkout/confirmation")
   }, [router, state.confirmation])
 
-  const completeCart = useCallback(() => {
-    if (completionStarted.current) {
+  useEffect(() => {
+    if (state.status !== "error" || !paymentAlreadySucceeded.current) {
       return
     }
 
-    completionStarted.current = true
+    // Keep completionInFlight locked. Medusa may have compensated the payment;
+    // do not blind-retry cart.complete from stale browser state.
+    setPhase("needs_refresh")
+  }, [state])
+
+  const completeCart = useCallback(() => {
+    if (needsAuthoritativeRefresh || !lockPaymentAttempt(completionInFlight)) {
+      return
+    }
+
+    paymentAlreadySucceeded.current = true
     setBrowserMessage(undefined)
     setPhase("completing")
     startTransition(() => formAction(new FormData()))
-  }, [formAction, startTransition])
+  }, [formAction, needsAuthoritativeRefresh, startTransition])
 
   useEffect(() => {
-    if (!stripe || payment.sessionStatus !== "pending" || completionStarted.current) {
+    if (
+      !stripe ||
+      !isReturnUrlCompletableSessionStatus(payment.sessionStatus) ||
+      completionInFlight.current ||
+      paymentAlreadySucceeded.current ||
+      needsAuthoritativeRefresh
+    ) {
       return
     }
 
@@ -166,16 +167,31 @@ function PaymentFormInner({ payment }: { payment: CheckoutPaymentProjection }) {
     return () => {
       active = false
     }
-  }, [completeCart, payment.clientSecret, payment.sessionStatus, stripe])
+  }, [
+    completeCart,
+    needsAuthoritativeRefresh,
+    payment.clientSecret,
+    payment.sessionStatus,
+    stripe,
+  ])
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
 
     if (
+      !shouldAllowStripePaymentConfirmation({
+        paymentAlreadySucceeded: paymentAlreadySucceeded.current,
+        needsAuthoritativeRefresh,
+      })
+    ) {
+      return
+    }
+
+    if (
       !stripe ||
       !elements ||
       paymentFormDisabled ||
-      completionStarted.current ||
+      completionInFlight.current ||
       !lockPaymentAttempt(paymentAttemptStarted)
     ) {
       return
@@ -236,9 +252,10 @@ function PaymentFormInner({ payment }: { payment: CheckoutPaymentProjection }) {
         return
       }
 
+      paymentAlreadySucceeded.current = true
       completeCart()
     } catch {
-      if (!completionStarted.current) {
+      if (!paymentAlreadySucceeded.current) {
         if (confirmationStarted) {
           setBrowserMessage("We could not verify the payment status. Do not submit again while it is being checked.")
           setPhase("pending")
@@ -265,7 +282,33 @@ function PaymentFormInner({ payment }: { payment: CheckoutPaymentProjection }) {
   }
 
   if (state.confirmation) {
-    return <ConfirmationState confirmation={state.confirmation} />
+    return <CheckoutConfirmationView confirmation={state.confirmation} />
+  }
+
+  if (needsAuthoritativeRefresh) {
+    return (
+      <section className="checkout-section" aria-labelledby="payment-reconcile-title">
+        <h2 id="payment-reconcile-title">Confirming your order</h2>
+        <p className="checkout-message checkout-message--error" role="alert">
+          Payment was received, but order confirmation failed. Do not pay again.
+          Refresh checkout so Medusa can decide whether the order already exists,
+          a new payment session is required, or finalization is still safe.
+        </p>
+        {state.message ? (
+          <p className="checkout-message checkout-message--error" role="alert" aria-live="polite">
+            {state.message}
+          </p>
+        ) : null}
+        {browserMessage ? (
+          <p className="checkout-message checkout-message--error" role="alert">
+            {browserMessage}
+          </p>
+        ) : null}
+        <a className="button-link button-link--secondary" href="/checkout">
+          Refresh checkout
+        </a>
+      </section>
+    )
   }
 
   return (

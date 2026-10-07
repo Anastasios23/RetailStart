@@ -23,11 +23,13 @@ import {
   deriveCheckoutProgress,
   hasCurrentCheckoutTotals,
 } from "../../lib/medusa/checkout-presentation"
+import { CheckoutFinalizeOrder } from "./checkout-finalize-order"
 import { StripePaymentForm } from "./stripe-payment-form"
 import type {
   CheckoutPaymentIssue,
   CheckoutPaymentProjection,
 } from "../../lib/medusa/checkout-payment"
+import { canFinalizePaidPaymentSession } from "../../lib/medusa/checkout-payment"
 import { formatMoney } from "../../lib/money"
 
 type CheckoutFormProps = {
@@ -491,7 +493,17 @@ export function CheckoutForm({
           <StripePaymentForm payment={payment} publishableKey={publishableKey} />
         ) : null}
 
-        {progress === "ready_for_payment" && paymentIssue ? (
+        {progress === "ready_for_payment" &&
+        paymentIssue &&
+        canFinalizePaidPaymentSession(cart) ? (
+          <CheckoutFinalizeOrder
+            intro={`Medusa reports this payment as ${paymentIssue}. Complete the order without entering payment details again.`}
+          />
+        ) : null}
+
+        {progress === "ready_for_payment" &&
+        paymentIssue &&
+        !canFinalizePaidPaymentSession(cart) ? (
           <section className="checkout-section" aria-labelledby="payment-status-title">
             <h2 id="payment-status-title">Payment status</h2>
             <p className="checkout-message checkout-message--error" role="alert">
@@ -499,6 +511,8 @@ export function CheckoutForm({
                 ? "Payment is awaiting provider authorization. Refresh checkout to reconcile it; do not enter payment details again."
                 : paymentIssue === "error"
                   ? "The current payment session failed. Refresh checkout to recover it before trying again."
+                  : paymentIssue === "authorized" || paymentIssue === "captured"
+                    ? `Medusa reports this payment as ${paymentIssue}, but it no longer matches the current cart total or currency. Refresh checkout to reconcile it; do not enter payment details or finalize from this stale state.`
                   : `Medusa reports this payment as ${paymentIssue}. Refresh checkout to reconcile it before trying again.`}
             </p>
             <Link className="button-link button-link--secondary" href="/checkout">
