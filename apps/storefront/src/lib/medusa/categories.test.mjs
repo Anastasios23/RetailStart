@@ -14,7 +14,7 @@ const product = (id, categories = []) => ({ id, handle: id, title: `Product ${id
   calculated_price: { calculated_amount: 25, currency_code: "eur" },
 }] })
 const pricing = { region_id: "reg_fixture", country_code: "cy" }
-function boundary(categoryRead, productRead = async () => ({ products: [] })) {
+function boundary(categoryRead, productRead = async () => ({ products: [], count: 0, offset: 0 })) {
   const queries = { categories: [], products: [] }
   const client = { store: {
     category: { list: async (q) => { queries.categories.push(q); return categoryRead(q) } },
@@ -32,11 +32,12 @@ const grid = load("../../app/components/product-grid.tsx", {
   "../../lib/medusa/products": { ...variants, getPrimaryVariant: (p) => p.variants?.[0] },
   "../../lib/money": { formatMoney },
 }).ProductGrid
+const pagination = load("../../app/components/pagination.tsx", { "next/link": { default: Link } })
 function detail(b) {
   return load("../../app/categories/[handle]/page.tsx", {
     "next/link": { default: Link }, "next/navigation": { notFound() { throw new Error("NEXT_NOT_FOUND") } },
     "../../../lib/medusa/categories": b.categories, "../../../lib/medusa/products": b.products,
-    "../../components/product-grid": { ProductGrid: grid },
+    "../../components/product-grid": { ProductGrid: grid }, "../../components/pagination": pagination,
   }).default
 }
 function index(b) {
@@ -88,15 +89,18 @@ test("successful empty category list renders empty copy; list API failure reject
 test("handle resolves identity; direct and multi-category products appear, descendants do not", async () => {
   const parent = category("cat_authoritative", "customer-handle", { category_children: [category("child")] })
   const all = [product("direct", [parent]), product("multi", [parent, category("other")]), product("descendant", [category("child")])]
-  const b = boundary(async q => { assert.equal(q.handle, "customer-handle"); return response([parent]) }, async q => ({
-    products: all.filter(p => p.categories.some(c => q.category_id.includes(c.id))),
-  }))
-  const html = markup(await detail(b)({ params: Promise.resolve({ handle: "customer-handle" }) }))
+  const b = boundary(async q => { assert.equal(q.handle, "customer-handle"); return response([parent]) }, async q => {
+    const products = all.filter(p => p.categories.some(c => q.category_id.includes(c.id)))
+    return { products, count: products.length, offset: q.offset }
+  })
+  const html = markup(await detail(b)({ params: Promise.resolve({ handle: "customer-handle" }), searchParams: Promise.resolve({}) }))
   assert.deepEqual(Array.from(b.queries.products[0].category_id), ["cat_authoritative"])
   assert.equal(b.queries.products[0].fields, b.products.productFields)
   assert.equal(b.queries.products[0].region_id, pricing.region_id)
   assert.equal(b.queries.products[0].country_code, "cy")
-  assert.equal(b.queries.products[0].limit, 100)
+  assert.equal(b.queries.products[0].limit, 24)
+  assert.equal(b.queries.products[0].offset, 0)
+  assert.equal(b.queries.products[0].order, "id")
   assert.match(html, /Product direct/)
   assert.match(html, /Product multi/)
   assert.doesNotMatch(html, /Product descendant/)
@@ -104,23 +108,23 @@ test("handle resolves identity; direct and multi-category products appear, desce
 })
 test("valid empty category keeps heading and explicit category-empty copy", async () => {
   const b = boundary(async () => response([category("empty")]))
-  const html = markup(await detail(b)({ params: Promise.resolve({ handle: "empty" }) }))
+  const html = markup(await detail(b)({ params: Promise.resolve({ handle: "empty" }), searchParams: Promise.resolve({}) }))
   assert.match(html, /<h1 id="category-title">Category empty<\/h1>/)
   assert.match(html, /No products are available in this category right now/)
 })
 test("nonexistent category uses Next notFound without reading products", async () => {
   const b = boundary(async () => response([]))
-  await assert.rejects(detail(b)({ params: Promise.resolve({ handle: "missing" }) }), /NEXT_NOT_FOUND/)
+  await assert.rejects(detail(b)({ params: Promise.resolve({ handle: "missing" }), searchParams: Promise.resolve({}) }), /NEXT_NOT_FOUND/)
   assert.equal(b.queries.products.length, 0)
 })
 test("category lookup API failure remains unavailable, including upstream 404", async () => {
   const b = boundary(async () => { throw Object.assign(new Error("upstream"), { status: 404 }) })
-  await assert.rejects(detail(b)({ params: Promise.resolve({ handle: "missing" }) }), { name: "StorefrontCatalogError" })
+  await assert.rejects(detail(b)({ params: Promise.resolve({ handle: "missing" }), searchParams: Promise.resolve({}) }), { name: "StorefrontCatalogError" })
   assert.equal(b.queries.products.length, 0)
 })
 test("product-read API failure remains unavailable, not an empty category", async () => {
   const b = boundary(async () => response([category("valid")]), async () => { throw new Error("product read failed") })
-  await assert.rejects(detail(b)({ params: Promise.resolve({ handle: "valid" }) }), { name: "StorefrontCatalogError" })
+  await assert.rejects(detail(b)({ params: Promise.resolve({ handle: "valid" }), searchParams: Promise.resolve({}) }), { name: "StorefrontCatalogError" })
 })
 test("ambiguous or mismatched handle responses cannot become an arbitrary category", async () => {
   for (const data of [[category("wrong")], [category("wanted"), category("wanted")]]) {
@@ -131,13 +135,13 @@ test("ambiguous or mismatched handle responses cannot become an arbitrary catego
 test("existing products list query, empty copy, detail link and first-variant semantics remain intact", async () => {
   const p = product("existing")
   p.variants.push({ calculated_price: { calculated_amount: 1, currency_code: "eur" }, inventory_quantity: 0 })
-  const b = boundary(async () => response([]), async () => ({ products: [p] }))
+  const b = boundary(async () => response([]), async () => ({ products: [p], count: 1, offset: 0 }))
   const page = load("../../app/products/page.tsx", {
-    "../../lib/medusa/products": b.products, "../components/product-grid": { ProductGrid: grid },
+    "../../lib/medusa/products": b.products, "../components/product-grid": { ProductGrid: grid }, "../components/pagination": pagination,
   }).default
-  const html = markup(await page())
+  const html = markup(await page({ searchParams: Promise.resolve({}) }))
   assert.equal(b.queries.products[0].category_id, undefined)
-  assert.equal(b.queries.products[0].limit, 100)
+  assert.equal(b.queries.products[0].limit, 24)
   assert.match(html, /href="\/products\/existing"/)
   assert.match(html, /25\.00/)
   assert.match(html, /In stock/)
