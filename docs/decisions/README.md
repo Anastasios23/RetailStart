@@ -156,6 +156,7 @@ This directory contains concise records of important, approved architecture deci
 - [ADR-0150: Atomic lifecycle-policy activation](0150-atomic-lifecycle-policy-activation.md)
 - [ADR-0151: Concurrent lifecycle-policy activation control](0151-concurrent-lifecycle-policy-activation-control.md)
 - [ADR-0152: Lifecycle-policy activation-operation idempotency](0152-lifecycle-policy-activation-operation-idempotency.md)
+- [ADR-0153: Storefront product listing pagination](0153-storefront-product-listing-pagination.md)
 
 ## Record format
 
