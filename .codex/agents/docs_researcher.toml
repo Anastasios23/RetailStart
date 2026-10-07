@@ -1,7 +1,5 @@
 name = "docs_researcher"
 description = "Read-only documentation researcher for version-specific framework, library, API, and provider behavior."
-model = "gpt-6-luna"
-model_reasoning_effort = "high"
 sandbox_mode = "read-only"
 
 developer_instructions = """

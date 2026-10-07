@@ -1,7 +1,5 @@
 name = "code_mapper"
 description = "Read-only codebase explorer for locating the smallest relevant execution path before implementation."
-model = "gpt-6-luna"
-model_reasoning_effort = "high"
 sandbox_mode = "read-only"
 
 developer_instructions = """
