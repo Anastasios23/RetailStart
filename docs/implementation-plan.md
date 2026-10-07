@@ -1260,7 +1260,12 @@ into a 404). The handler requires a matching `Origin` and a strictly validated
 JSON body carrying the displayed `displayId`, `customDisplayId`, `total` and
 `currencyCode`. Those posted values are only a binding and race guard against a
 stale tab clearing a newer cart; they are not commerce authority. A mismatch
-returns 409 and a failed lookup returns 502, and both retain the cookie. The
+returns 409 and a failed lookup returns 502, and both retain the cookie. A
+cookie deletion cannot be conditional on the cookie's value, so if another tab
+creates a new cart while a cleanup request is in flight, that deletion can also
+remove the newer cookie (the new cart then appears empty and can be re-added;
+no payment or order is affected). This limitation of the previous Server Action
+is accepted rather than adding a second mechanism. The
 payment-session preparation route also rejects completed carts before running
 the preparation workflow. If the confirmation-page lookup fails temporarily,
 the page keeps the cart and offers a retry through `/checkout` without inviting

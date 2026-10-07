@@ -100,6 +100,14 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     return new NextResponse(null, { status: 409, headers: noStore })
   }
 
+  // Known limitation: a cookie deletion matches by name, domain and path only,
+  // so it cannot be conditional on the value. The cookie seen above is the
+  // request's snapshot, not the browser's current jar. If another tab creates a
+  // new cart and its Set-Cookie is applied while this request is in flight, this
+  // deletion can remove that newer cookie too (the new cart then looks empty and
+  // can be re-added). The window is the lookup time and the cost is a lost cart
+  // reference; no payment or order is affected. The removed Server Action had
+  // the same property. Accepted rather than adding a second mechanism.
   await clearCartId()
 
   return new NextResponse(null, { status: 204, headers: noStore })
