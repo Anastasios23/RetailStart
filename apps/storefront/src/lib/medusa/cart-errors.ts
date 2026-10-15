@@ -43,10 +43,17 @@ export function isStaleCartReferenceError(error: unknown): boolean {
   return status === 400 || status === 404
 }
 
-export function classifyCartError(error: unknown): Exclude<CartErrorCategory, "no_cart"> {
+export function classifyCartError(
+  error: unknown,
+  operation?: CartOperation
+): Exclude<CartErrorCategory, "no_cart"> {
   const status = getHttpStatus(error)
 
   if (status === 404) {
+    if (operation === "add") {
+      return "rejected"
+    }
+
     return "stale_reference"
   }
 
@@ -65,7 +72,7 @@ export function toCartOperationError(
     return error
   }
 
-  return new CartOperationError(operation, classifyCartError(error))
+  return new CartOperationError(operation, classifyCartError(error, operation))
 }
 
 export type CartActionResult =

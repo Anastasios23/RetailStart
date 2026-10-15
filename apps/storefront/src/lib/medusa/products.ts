@@ -54,11 +54,15 @@ async function listStoreProducts(
   }
 }
 
+export const maxSafeProductPage = Math.floor(
+  Number.MAX_SAFE_INTEGER / productPageSize
+)
+
 // Missing, malformed, zero, negative, or unsafe values fall back to page 1.
 export function parsePageParam(value: string | string[] | undefined) {
   if (typeof value !== "string" || !/^[1-9]\d*$/.test(value)) return 1
   const page = Number(value)
-  return Number.isSafeInteger(page) ? page : 1
+  return Number.isSafeInteger(page) && page <= maxSafeProductPage ? page : 1
 }
 
 // A page past the last one is not found. An empty catalog has one page (page 1).

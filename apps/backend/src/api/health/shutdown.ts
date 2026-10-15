@@ -3,7 +3,7 @@ type ShutdownState = "serving" | "draining"
 let state: ShutdownState = "serving"
 let handlersInstalled = false
 
-function installShutdownHandlers(): void {
+export function installShutdownHandlers(): void {
   if (handlersInstalled) {
     return
   }
@@ -26,6 +26,8 @@ function installShutdownHandlers(): void {
   process.once("SIGTERM", beginDrain)
   process.once("SIGINT", beginDrain)
 }
+
+installShutdownHandlers()
 
 export function isDraining(): boolean {
   installShutdownHandlers()

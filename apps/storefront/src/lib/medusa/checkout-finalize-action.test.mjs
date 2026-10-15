@@ -75,3 +75,38 @@ test("normal completion after a successful confirmPayment is unchanged", async (
   assert.equal(calls.complete, 1)
   assert.equal(result.status, "success")
 })
+
+test("completeCheckoutAction refuses to complete when payment session is missing or unready", async () => {
+  const unreadyCarts = {
+    "no payment collection": paidCart({ payment_collection: null }),
+    "no payment sessions": paidCart({ payment_collection: { id: "pay_col_1", amount: 50, currency_code: "eur", payment_sessions: [] } }),
+    "mismatched amount": paidCart({ total: 75 }),
+    "error status": paidCart({ payment_collection: { ...paidCart().payment_collection, payment_sessions: [{ ...paidCart().payment_collection.payment_sessions[0], status: "error" }] } }),
+    "canceled status": paidCart({ payment_collection: { ...paidCart().payment_collection, payment_sessions: [{ ...paidCart().payment_collection.payment_sessions[0], status: "canceled" }] } }),
+  }
+
+  for (const [name, cart] of Object.entries(unreadyCarts)) {
+    const { module, calls, payment } = actions(cart)
+    assert.equal(payment.canCompleteCheckoutPaymentSession(cart), false, `${name} helper`)
+    const result = await module.completeCheckoutAction({}, new FormData())
+    assert.equal(calls.complete, 0, `${name} calls.complete`)
+    assert.equal(result.status, "error", `${name} status`)
+  }
+})
+
+test("shouldAutoFinalizeFromUrl detects 3DS redirect return parameters", () => {
+  const finalizeOrder = load("../../app/components/checkout-finalize-order.tsx", {
+    "next/navigation": { useRouter: () => ({ replace() {} }) },
+    "react": { useActionState: () => [{}, () => {}, false], useEffect: () => {}, useRef: () => ({ current: false }), useState: () => [false, () => {}], useTransition: () => [false, () => {}] },
+    "../../lib/medusa/checkout-payment": { lockPaymentAttempt: () => true },
+    "../../lib/money": { formatMoney: () => "" },
+    "../actions/checkout-actions": { finalizeCheckoutAction: async () => ({}) },
+    "../actions/checkout-action-state": { initialCheckoutActionState: {} },
+  })
+
+  assert.equal(finalizeOrder.shouldAutoFinalizeFromUrl("?payment_intent=pi_123&payment_intent_client_secret=pi_123_secret_xyz&redirect_status=succeeded"), true)
+  assert.equal(finalizeOrder.shouldAutoFinalizeFromUrl("?redirect_status=succeeded"), true)
+  assert.equal(finalizeOrder.shouldAutoFinalizeFromUrl("?payment_intent_client_secret=pi_123_secret_xyz"), true)
+  assert.equal(finalizeOrder.shouldAutoFinalizeFromUrl(""), false)
+  assert.equal(finalizeOrder.shouldAutoFinalizeFromUrl("?foo=bar"), false)
+})

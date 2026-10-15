@@ -12,6 +12,7 @@ import {
 import { getMedusaClient } from "../../lib/medusa/client"
 import {
   canClearCartForResult,
+  canCompleteCheckoutPaymentSession,
   canFinalizePaidPaymentSession,
   projectCheckoutConfirmation,
 } from "../../lib/medusa/checkout-payment"
@@ -173,12 +174,23 @@ async function completeCheckout(finalizeOnly: boolean): Promise<CheckoutActionSt
       }
     }
 
-    if (finalizeOnly && !canFinalizePaidPaymentSession(cart)) {
-      return {
-        status: "error",
-        message:
-          "Your payment session changed and can no longer be finalized. Refresh checkout so the current payment state can be reconciled.",
-        paymentState: "pending",
+    if (finalizeOnly) {
+      if (!canFinalizePaidPaymentSession(cart)) {
+        return {
+          status: "error",
+          message:
+            "Your payment session changed and can no longer be finalized. Refresh checkout so the current payment state can be reconciled.",
+          paymentState: "pending",
+        }
+      }
+    } else {
+      if (!canCompleteCheckoutPaymentSession(cart)) {
+        return {
+          status: "error",
+          message:
+            "Your payment session is not ready for completion. Return to checkout and confirm your payment details.",
+          paymentState: "pending",
+        }
       }
     }
 

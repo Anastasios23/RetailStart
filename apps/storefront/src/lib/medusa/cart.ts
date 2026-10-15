@@ -8,9 +8,9 @@ import {
   isStaleCartReferenceError,
   toCartOperationError,
 } from "./cart-errors"
-import { readCartId, writeCartId } from "./cart-cookie"
+import { clearCartId, readCartId, writeCartId } from "./cart-cookie"
 
-const cartFields = "*items"
+const cartFields = "*items,completed_at"
 
 export type CurrentCartResult =
   | { kind: "missing" | "stale" }
@@ -63,7 +63,12 @@ export async function getCurrentCart(): Promise<CurrentCartResult> {
   }
 
   try {
-    return { kind: "available", cart: await retrieveCart(cartId) }
+    const cart = await retrieveCart(cartId)
+    if (cart.completed_at) {
+      return { kind: "stale" }
+    }
+
+    return { kind: "available", cart }
   } catch (error) {
     if (isStaleCartReferenceError(error)) {
       return { kind: "stale" }
@@ -79,7 +84,13 @@ export async function getOrCreateCart(): Promise<HttpTypes.StoreCart> {
 
   if (cartId) {
     try {
-      return await retrieveCart(cartId)
+      const cart = await retrieveCart(cartId)
+      if (cart.completed_at) {
+        await clearCartId()
+        return createCart()
+      }
+
+      return cart
     } catch (error) {
       if (!isStaleCartReferenceError(error)) {
         logCartFailure("retrieve-before-create", error)

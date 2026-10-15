@@ -452,3 +452,9 @@ test("confirmation projection uses authoritative order summary and currency", ()
     }
   )
 })
+
+test("formatMoney safely handles invalid currency codes without throwing RangeError", async () => {
+  const { formatMoney } = await import("../../lib/money.ts")
+  assert.equal(formatMoney(100, "INVALID_XYZ", "en-US"), "100 INVALID_XYZ")
+  assert.equal(formatMoney(45.5, "eur", "en-US"), "€45.50")
+})

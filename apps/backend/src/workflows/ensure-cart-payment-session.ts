@@ -2,6 +2,7 @@ import {
   acquireLockStep,
   createPaymentCollectionForCartWorkflow,
   createPaymentSessionsWorkflow,
+  refreshPaymentCollectionForCartWorkflow,
   releaseLockStep,
   useRemoteQueryStep,
 } from "@medusajs/medusa/core-flows"
@@ -17,7 +18,9 @@ import { MedusaError } from "@medusajs/framework/utils"
 import { randomUUID } from "node:crypto"
 
 import {
+  buildPaymentSessionInput,
   classifyCartPaymentSession,
+  shouldRefreshPaymentCollection,
   STRIPE_PAYMENT_PROVIDER_ID,
   type CartPaymentDecision,
   type CartPaymentSnapshot,
@@ -130,17 +133,7 @@ const buildResult = (
 const requirePaymentCollectionStep = createStep(
   "require-payment-collection",
   ({ cart, providerId }: { cart: CartPaymentSnapshot; providerId: string }) => {
-    if (!cart.payment_collection?.id) {
-      throw new MedusaError(
-        MedusaError.Types.NOT_FOUND,
-        "Cart payment collection was not created"
-      )
-    }
-
-    return new StepResponse({
-      payment_collection_id: cart.payment_collection.id,
-      provider_id: providerId,
-    })
+    return new StepResponse(buildPaymentSessionInput(cart, providerId))
   }
 )
 
@@ -190,8 +183,26 @@ export const ensureCartPaymentSessionWorkflow = createWorkflow(
       })
     })
 
+    const shouldRefreshCollection = transform(
+      { cartBeforeCollection },
+      ({ cartBeforeCollection }) =>
+        shouldRefreshPaymentCollection(
+          cartBeforeCollection as CartPaymentSnapshot
+        )
+    )
+
+    const collectionRefreshed = when(
+      "ensure-payment-session-refresh-collection-if-stale",
+      { shouldRefreshCollection },
+      ({ shouldRefreshCollection }) => shouldRefreshCollection
+    ).then(() => {
+      return refreshPaymentCollectionForCartWorkflow.runAsStep({
+        input: { cart_id: input.cart_id },
+      })
+    })
+
     const cartAfterCollectionVariables = transform(
-      { collectionCreated },
+      { collectionCreated, collectionRefreshed },
       () => ({ id: input.cart_id })
     )
 

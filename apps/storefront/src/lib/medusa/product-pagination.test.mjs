@@ -31,7 +31,19 @@ function boundary(all) {
 
 test("page param: missing, malformed, zero, negative and unsafe values fall back to page 1", () => {
   const { products } = boundary([])
-  for (const value of [undefined, "", "abc", "0", "-3", "1.5", "2e1", " 2", "99999999999999999999", ["2", "3"]]) {
+  for (const value of [
+    undefined,
+    "",
+    "abc",
+    "0",
+    "-3",
+    "1.5",
+    "2e1",
+    " 2",
+    "99999999999999999999",
+    String(Number.MAX_SAFE_INTEGER),
+    ["2", "3"],
+  ]) {
     assert.equal(products.parsePageParam(value), 1, String(value))
   }
   assert.equal(products.parsePageParam("1"), 1)
