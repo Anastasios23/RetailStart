@@ -2,7 +2,6 @@
 
 import { useEffect, useRef } from "react"
 
-import { clearCompletedCartAction } from "../../actions/checkout-actions"
 import { formatMoney } from "../../../lib/money"
 
 type ConfirmationClientProps = {
@@ -26,12 +25,17 @@ export function ConfirmationClient({
     }
 
     clearStarted.current = true
-    void clearCompletedCartAction({
-      displayId,
-      customDisplayId,
-      total,
-      currencyCode,
-    })
+    // Same-origin Route Handler: it verifies the completed order itself and then
+    // clears the continuity cookie without re-rendering this page. The posted
+    // values come from the server-verified render above; they are not authority,
+    // only the expected identity so a stale tab cannot clear a newer cart. A
+    // failed request leaves the confirmation shown and the cookie in place.
+    void fetch("/checkout/confirmation/clear", {
+      method: "POST",
+      keepalive: true,
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ displayId, customDisplayId, total, currencyCode }),
+    }).catch(() => {})
   }, [currencyCode, customDisplayId, displayId, total])
 
   const reference = customDisplayId || displayId

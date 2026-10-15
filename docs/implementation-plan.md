@@ -1248,8 +1248,24 @@ read-only Store API route that requires a completed cart in the publishable
 key's sales-channel scope, follows the authoritative `order_cart` link, and
 returns only display reference, currency, and total. Checkout and confirmation
 now retrieve this projection from Medusa; URL parameters are no longer treated
-as confirmation evidence. The continuity cookie is cleared only after a
-second authoritative lookup matches the confirmation currently displayed. The
+as confirmation evidence. The continuity cookie is cleared only when the
+current cookie's cart resolves, through a second authoritative Medusa lookup, to
+a completed order, and that confirmation matches the confirmation that
+initiated the cleanup request. Checkout and other business mutations remain
+same-origin Server Actions; the one exception is a same-origin POST Route
+Handler (`/checkout/confirmation/clear`) that clears the verified completed-cart
+continuity cookie without re-rendering the confirmation page (a cookie change in
+a Server Action re-renders the page, which previously turned the confirmed page
+into a 404). The handler requires a matching `Origin` and a strictly validated
+JSON body carrying the displayed `displayId`, `customDisplayId`, `total` and
+`currencyCode`. Those posted values are only a binding and race guard against a
+stale tab clearing a newer cart; they are not commerce authority. A mismatch
+returns 409 and a failed lookup returns 502, and both retain the cookie. A
+cookie deletion cannot be conditional on the cookie's value, so if another tab
+creates a new cart while a cleanup request is in flight, that deletion can also
+remove the newer cookie (the new cart then appears empty and can be re-added;
+no payment or order is affected). This limitation of the previous Server Action
+is accepted rather than adding a second mechanism. The
 payment-session preparation route also rejects completed carts before running
 the preparation workflow. If the confirmation-page lookup fails temporarily,
 the page keeps the cart and offers a retry through `/checkout` without inviting

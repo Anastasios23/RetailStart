@@ -2,20 +2,18 @@
 
 import { revalidatePath } from "next/cache"
 
-import { clearCartId, readCartId } from "../../lib/medusa/cart-cookie"
+import { readCartId } from "../../lib/medusa/cart-cookie"
 import { getCheckoutActionErrorMessage } from "../../lib/medusa/checkout-errors"
 import {
   getAvailableShippingOptions,
   getCheckoutCountries,
   retrieveCheckoutCart,
-  retrieveCompletedCheckoutConfirmation,
 } from "../../lib/medusa/checkout"
 import { getMedusaClient } from "../../lib/medusa/client"
 import {
   canClearCartForResult,
   canFinalizePaidPaymentSession,
   projectCheckoutConfirmation,
-  type CheckoutConfirmation,
 } from "../../lib/medusa/checkout-payment"
 import { getIdentifier } from "../../lib/medusa/cart-validation"
 import {
@@ -24,10 +22,14 @@ import {
 } from "../../lib/medusa/checkout-validation"
 import type { CheckoutActionState } from "./checkout-action-state"
 
-// These mutations intentionally remain same-origin Next.js Server Actions.
-// No broad allowedOrigins or separate CSRF token boundary is introduced; the
-// HttpOnly cart cookie and the supported Next.js origin/host protections remain
-// the request boundary for this guest-only phase.
+// Checkout and other business mutations intentionally remain same-origin
+// Next.js Server Actions. No broad allowedOrigins or separate CSRF token
+// boundary is introduced; the HttpOnly cart cookie and the supported Next.js
+// origin/host protections remain the request boundary for this guest-only phase.
+// The only exception is the narrowly scoped confirmation cleanup Route Handler
+// (app/checkout/confirmation/clear/route.ts), which removes the guest continuity
+// cookie only after authoritative completed-order verification. It is not a
+// Server Action because a cookie change in an action re-renders the page.
 
 function errorState(message: string): CheckoutActionState {
   return { status: "error", message }
@@ -223,31 +225,4 @@ export async function finalizeCheckoutAction(
   _formData: FormData
 ): Promise<CheckoutActionState> {
   return completeCheckout(true)
-}
-
-export async function clearCompletedCartAction(
-  expectedConfirmation: CheckoutConfirmation
-): Promise<void> {
-  const cartId = await readCartId()
-
-  if (!cartId) {
-    return
-  }
-
-  try {
-    const confirmation = await retrieveCompletedCheckoutConfirmation(cartId)
-
-    if (
-      confirmation.displayId !== expectedConfirmation.displayId ||
-      confirmation.customDisplayId !== expectedConfirmation.customDisplayId ||
-      confirmation.total !== expectedConfirmation.total ||
-      confirmation.currencyCode !== expectedConfirmation.currencyCode
-    ) {
-      return
-    }
-
-    await clearCartId()
-  } catch {
-    // Retain the continuity reference until Medusa confirms its completed order.
-  }
 }
