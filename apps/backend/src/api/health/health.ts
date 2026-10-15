@@ -1,7 +1,7 @@
 import type { MedusaRequest } from "@medusajs/framework/http"
 import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
 
-export type CheckStatus = "available" | "unavailable"
+export type CheckStatus = "available" | "unavailable" | "degraded"
 
 export type CapabilityCheck = {
   status: CheckStatus
