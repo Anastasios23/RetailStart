@@ -12,6 +12,10 @@ export const runtimeEnvironmentSchema = z.object({
   STRIPE_WEBHOOK_SECRET: z.string().min(1),
   STRIPE_PAYMENT_METHOD_CONFIGURATION: z.string().regex(/^pmc_[A-Za-z0-9]+$/),
   SHUTDOWN_TIMEOUT_MS: z.coerce.number().int().positive().default(10000),
+  MEDIA_STORAGE_DRIVER: z.enum(["local", "s3", "mock"]).default("local"),
+  MEDIA_PUBLIC_URL_PREFIX: z.string().default("/static/media"),
+  MEDIA_SIGNING_SECRET: z.string().min(1).optional(),
+  MEDIA_UPLOAD_MAX_SIZE_BYTES: z.coerce.number().int().positive().default(20971520),
 })
 
 export type RuntimeEnvironment = z.infer<typeof runtimeEnvironmentSchema>
