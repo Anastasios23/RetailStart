@@ -172,6 +172,38 @@ export function canFinalizePaidPaymentSession(cart: HttpTypes.StoreCart): boolea
 }
 
 /**
+ * Normal checkout completion (used right after successful client-side Stripe
+ * payment) may proceed only when the Medusa cart has a valid payment session
+ * matching the cart amount and currency, or has already reached an
+ * authorized/captured state.
+ */
+export function canCompleteCheckoutPaymentSession(cart: HttpTypes.StoreCart): boolean {
+  if (canFinalizePaidPaymentSession(cart)) {
+    return true
+  }
+
+  const collection = cart.payment_collection
+  const session = findStripePaymentSession(cart)
+
+  if (!collection || !session) {
+    return false
+  }
+
+  if (
+    session.payment_collection &&
+    session.payment_collection.id !== collection.id
+  ) {
+    return false
+  }
+
+  if (session.status !== "pending" && session.status !== "requires_more") {
+    return false
+  }
+
+  return hasMatchingCartPaymentAmounts(cart, collection, session)
+}
+
+/**
  * Return-URL recovery may resume only while the Medusa session is still a
  * reusable Stripe client session. Authorized/captured carts use the
  * finalize-only checkout path instead of remounting Payment Element.

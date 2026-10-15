@@ -1,3 +1,5 @@
+import { MedusaError } from "@medusajs/framework/utils"
+
 export const STRIPE_PAYMENT_PROVIDER_ID = "pp_stripe_stripe"
 
 export type PaymentSessionSnapshot = {
@@ -132,4 +134,45 @@ export const classifyCartPaymentSession = (
   }
 
   return { kind: "initialize", reason: "unsupported_status" }
+}
+
+export const shouldRefreshPaymentCollection = (
+  cart: CartPaymentSnapshot
+): boolean => {
+  const collection = cart.payment_collection
+  if (!collection?.id) {
+    return false
+  }
+
+  const cartAmount = numericAmount(cart.total)
+  const collectionAmount = numericAmount(collection.amount)
+
+  if (cartAmount === null || collectionAmount === null) {
+    return true
+  }
+
+  return (
+    cartAmount !== collectionAmount ||
+    cart.currency_code !== collection.currency_code
+  )
+}
+
+export const buildPaymentSessionInput = (
+  cart: CartPaymentSnapshot,
+  providerId: string
+) => {
+  if (!cart.payment_collection?.id) {
+    throw new MedusaError(
+      MedusaError.Types.NOT_FOUND,
+      "Cart payment collection was not created"
+    )
+  }
+
+  return {
+    payment_collection_id: cart.payment_collection.id,
+    provider_id: providerId,
+    context: {
+      idempotency_key: `cart_${cart.id}_${cart.payment_collection.id}_${cart.currency_code}_${cart.total}`,
+    },
+  }
 }

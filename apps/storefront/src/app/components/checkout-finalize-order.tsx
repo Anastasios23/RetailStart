@@ -52,6 +52,17 @@ type CheckoutFinalizeOrderProps = {
   initialMessage?: string
 }
 
+export function shouldAutoFinalizeFromUrl(search: string): boolean {
+  if (!search || !search.trim()) {
+    return false
+  }
+  const url = new URL(search.startsWith("?") ? search : `?${search}`, "https://localhost")
+  return (
+    url.searchParams.get("redirect_status") === "succeeded" ||
+    url.searchParams.has("payment_intent_client_secret")
+  )
+}
+
 /**
  * Finalize-only path: calls finalizeCheckoutAction, which re-checks the freshly
  * read cart with canFinalizePaidPaymentSession before cart.complete.
@@ -103,6 +114,20 @@ export function CheckoutFinalizeOrder({
     setIsFinalizing(true)
     startTransition(() => formAction(new FormData()))
   }
+
+  useEffect(() => {
+    if (
+      typeof window === "undefined" ||
+      needsAuthoritativeRefresh ||
+      completionInFlight.current
+    ) {
+      return
+    }
+
+    if (shouldAutoFinalizeFromUrl(window.location.search)) {
+      handleFinalize()
+    }
+  }, [needsAuthoritativeRefresh])
 
   if (state.confirmation) {
     return <CheckoutConfirmationView confirmation={state.confirmation} />

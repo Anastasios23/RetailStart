@@ -7,12 +7,21 @@ export function formatMoney(
     throw new Error("Money amount must be a finite number")
   }
 
-  if (!currencyCode.trim()) {
+  const normalizedCurrency = currencyCode.trim().toUpperCase()
+
+  if (!normalizedCurrency) {
     throw new Error("Money currency code is required")
   }
 
-  return new Intl.NumberFormat(locale, {
-    style: "currency",
-    currency: currencyCode.toUpperCase(),
-  }).format(amount)
+  try {
+    return new Intl.NumberFormat(locale, {
+      style: "currency",
+      currency: normalizedCurrency,
+    }).format(amount)
+  } catch (error) {
+    if (error instanceof RangeError) {
+      return `${amount} ${normalizedCurrency}`
+    }
+    throw error
+  }
 }
