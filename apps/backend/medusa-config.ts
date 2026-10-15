@@ -46,5 +46,19 @@ module.exports = defineConfig({
         ],
       },
     },
+    {
+      resolve: "@medusajs/medusa/notification",
+      options: {
+        providers: [
+          {
+            resolve: "./src/modules/notification-test-sink",
+            id: "notification-test-sink",
+            options: {
+              channels: ["email"],
+            },
+          },
+        ],
+      },
+    },
   ]
 })
