@@ -44,15 +44,33 @@ function parseExpectedConfirmation(value: unknown): CheckoutConfirmation | null 
     return null
   }
 
-  if (displayId !== undefined && (typeof displayId !== "number" || !Number.isFinite(displayId))) {
+  if (
+    displayId !== undefined &&
+    displayId !== null &&
+    (typeof displayId !== "number" || !Number.isFinite(displayId))
+  ) {
     return null
   }
 
-  if (customDisplayId !== undefined && typeof customDisplayId !== "string") {
+  if (
+    customDisplayId !== undefined &&
+    customDisplayId !== null &&
+    typeof customDisplayId !== "string"
+  ) {
     return null
   }
 
-  return { displayId, customDisplayId, total, currencyCode }
+  const normalizedDisplayId =
+    typeof displayId === "number" && Number.isFinite(displayId) ? displayId : undefined
+  const normalizedCustomDisplayId =
+    typeof customDisplayId === "string" ? customDisplayId : undefined
+
+  return {
+    displayId: normalizedDisplayId,
+    customDisplayId: normalizedCustomDisplayId,
+    total,
+    currencyCode,
+  }
 }
 
 export async function POST(request: NextRequest): Promise<NextResponse> {
@@ -90,8 +108,8 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   }
 
   if (
-    confirmation.displayId !== expected.displayId ||
-    confirmation.customDisplayId !== expected.customDisplayId ||
+    (confirmation.displayId ?? undefined) !== (expected.displayId ?? undefined) ||
+    (confirmation.customDisplayId ?? undefined) !== (expected.customDisplayId ?? undefined) ||
     confirmation.total !== expected.total ||
     confirmation.currencyCode !== expected.currencyCode
   ) {

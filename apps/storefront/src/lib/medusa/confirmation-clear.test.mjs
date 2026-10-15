@@ -100,6 +100,14 @@ test("optional identifiers match when both sides omit them", async () => {
   assert.equal(calls.clear, 1)
 })
 
+test("standard order with customDisplayId null clears the cookie once", async () => {
+  const standardMedusaOrder = { displayId: 17, customDisplayId: null, total: 30, currencyCode: "eur" }
+  const { POST, calls, request } = handler({ lookup: async () => standardMedusaOrder })
+  const response = await POST(request(appOrigin, standardMedusaOrder))
+  assert.equal(response.status, 204)
+  assert.equal(calls.clear, 1)
+})
+
 test("cross-origin, missing and malformed Origin are rejected before the body, cookie or Medusa are touched", async () => {
   for (const origin of [
     "https://evil.example",
