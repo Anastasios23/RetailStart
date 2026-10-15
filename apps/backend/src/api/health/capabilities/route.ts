@@ -12,18 +12,49 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
     required: true,
   }
 
+  const payment_gateway: CapabilityCheck = {
+    status: process.env.STRIPE_API_KEY ? "available" : "unavailable",
+    required: false,
+  }
+
+  const media: CapabilityCheck = {
+    status: "available",
+    required: false,
+  }
+
+  const notifications: CapabilityCheck = {
+    status: "available",
+    required: false,
+  }
+
   try {
     await checkDatabase(req)
   } catch {
     database.status = "unavailable"
   }
 
-  const status = database.status === "available" ? "available" : "degraded"
+  let status: "available" | "degraded" | "unavailable" = "available"
+  let statusCode = 200
 
-  res.status(database.status === "available" ? 200 : 503).json({
+  if (database.status === "unavailable") {
+    status = "unavailable"
+    statusCode = 503
+  } else if (
+    payment_gateway.status === "unavailable" ||
+    media.status === "unavailable" ||
+    notifications.status === "unavailable"
+  ) {
+    status = "degraded"
+    statusCode = 200
+  }
+
+  res.status(statusCode).json({
     status,
     capabilities: {
       database,
+      payment_gateway,
+      media,
+      notifications,
     },
     checkedAt: checkedAt(),
   })
