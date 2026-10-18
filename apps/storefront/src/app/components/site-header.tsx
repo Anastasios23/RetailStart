@@ -1,26 +1,22 @@
 import Link from "next/link"
+import { getPublicPresentationConfig } from "../../lib/presentation/config"
 
 export function SiteHeader() {
+  const presentation = getPublicPresentationConfig()
+
   return (
     <header className="site-header">
       <div className="site-header__inner">
         <Link className="site-header__brand" href="/">
-          Retail Starter
+          {presentation.branding.name}
         </Link>
         <nav aria-label="Primary navigation">
           <ul className="site-header__nav">
-            <li>
-              <Link href="/">Home</Link>
-            </li>
-            <li>
-              <Link href="/products">Products</Link>
-            </li>
-            <li>
-              <Link href="/categories">Categories</Link>
-            </li>
-            <li>
-              <Link href="/cart">Cart</Link>
-            </li>
+            {presentation.navigation.header.map((item) => (
+              <li key={item.href}>
+                <Link href={item.href}>{item.label}</Link>
+              </li>
+            ))}
           </ul>
         </nav>
       </div>
