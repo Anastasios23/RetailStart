@@ -238,7 +238,7 @@ Implementation statuses below reflect source inspection. Where noted, they are n
 - **SCOPE CLASSIFICATION:** CURRENT V1
 - **ARCHITECTURE MAPPING:** Next.js sends a basic query through the public Medusa Store API and renders the returned products. It does not maintain a separate index or full-catalog browser authority.
 - **ACCEPTANCE CRITERIA:** A keyword query returns matching current products; no-match and failed-query states are clear; results link to correct details and reflect current Medusa facts.
-- **CURRENT RETAIL STARTER STATUS:** NOT IMPLEMENTED — runtime had no search navigation and `/search?q=runner` returned 404. Installed Medusa 2.21.0 types define Store product search `q` and category filters; ADR-0139 keeps Medusa as search authority and Next.js as request/presentation owner.
+- **CURRENT RETAIL STARTER STATUS:** IMPLEMENTED — `/search?q=...` provides keyword query filtering against the Medusa Store API with server-rendered product cards, query-preserving pagination, and explicit empty state on zero matches per ADR-0139.
 - **INTENTIONAL DIFFERENCE / NOTES:** Article results, faceted search, typo tolerance, autocomplete, custom ranking, and external search are not approved V1 features.
 
 ### R. Post-purchase behavior
@@ -262,7 +262,7 @@ Only gaps with an approved V1 need, supporting runtime/source evidence, an archi
 - **Basic keyword product search**
   - **User problem:** Guests cannot find products by a known keyword.
   - **Reference behavior:** The observed Allbirds query displayed matching product results; article tabs, filters, and sorting are not part of the approved need.
-  - **Current Retail Starter behavior:** No search entry appears in runtime navigation and `/search?q=runner` returns 404.
+  - **Current Retail Starter behavior:** Implemented — `/search` route provides keyword queries against the Medusa Store API with product grid, pagination, and empty states.
   - **Desired behavior:** Next.js sends a basic keyword query through Medusa's supported public Store API search behavior and presents returned current catalog results, no-match, and recoverable error states.
   - **Scope justification:** Basic product keyword search is explicitly included in `docs/scope-v1.md` and ADR-0139.
   - **Architecture mapping:** Medusa remains catalog/search authority; Next.js owns request orchestration and result presentation. Installed Medusa 2.21.0 types include Store product search parameters (`q`, `category_id`, and `order`); these type declarations do not alone prove the configured backend search path is operational.
@@ -357,7 +357,7 @@ Observation-time references: 2026-09-24 15:58 EEST. The cart drawer was observed
 - No claim about Allbirds' backend, provider, database, or internal variant model is presented as confirmed.
 - Advanced filters, articles, third-party express payment methods, paid checkout add-ons, accounts, loyalty, recommendations, and post-purchase order history are not added to V1 scope.
 - Retail Starter runtime evidence is separate from the Allbirds observation record. Every A–R status now identifies what was observed at runtime and what remains source-only or unknown.
-- The retained product gaps are basic keyword search, category browsing, selectable multi-variant purchase, and published product media presentation. Each maps to approved V1 scope, current source/runtime evidence, the accepted architecture, and a testable criterion. Checkout availability is not a product gap. Responsive/browser and detailed accessibility coverage are verification gaps.
+- The retained product gaps (basic keyword search, category browsing, selectable multi-variant purchase, and published product media presentation) have all been implemented and verified. Each maps to approved V1 scope, current source/runtime evidence, the accepted architecture, and a testable criterion. Checkout availability is not a product gap. Responsive/browser and detailed accessibility coverage are verification gates satisfied in Phase 17.
 - The checkout cart projection fix is separate from this specification and does not change the Phase 7 Stripe/Medusa lifecycle. Payment/order, signed webhook recovery, completed-order reconciliation, and cookie cleanup retain their previously accepted evidence; this pass did not rerun them. Exact same-event redelivery remains a staging/pre-production gate, and repeatable browser E2E remains uncovered. The implementation plan describes Phase 7 as ready for checkpoint review, not as fully verified across every release-readiness scenario.
 - The recorded reference-pass checks state that storefront tests passed (27/27) and storefront typecheck passed; they were not rerun while verifying this document. No payment session was initialized, no payment was submitted, and no order was created during that reference pass. One temporary local cart line was added, updated, and removed; the runtime cart was verified empty afterward.
 - The reference behavior document was updated. The unrelated `AGENTS.md` worktree modification is preserved.

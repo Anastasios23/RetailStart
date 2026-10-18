@@ -36,7 +36,7 @@ export type ProductPage = {
 }
 
 async function listStoreProducts(
-  query: Pick<HttpTypes.StoreProductListParams, "handle" | "category_id" | "limit" | "offset" | "order"> = {}
+  query: Pick<HttpTypes.StoreProductListParams, "handle" | "category_id" | "limit" | "offset" | "order" | "q"> = {}
 ) {
   const client = getMedusaClient()
   const pricingContext = getMedusaPricingContext()
@@ -71,7 +71,7 @@ export function isPageOutOfRange({ page, totalPages }: ProductPage) {
 }
 
 async function listProductPage(
-  query: Pick<HttpTypes.StoreProductListParams, "category_id">,
+  query: Pick<HttpTypes.StoreProductListParams, "category_id" | "q">,
   page: number
 ): Promise<ProductPage> {
   const offset = (page - 1) * productPageSize
@@ -110,6 +110,11 @@ export function listProducts(page = 1) {
 
 export function listProductsByCategory(categoryId: string, page = 1) {
   return listProductPage({ category_id: [categoryId] }, page)
+}
+
+export function searchProducts(searchTerm: string, page = 1) {
+  const q = searchTerm.trim()
+  return listProductPage(q ? { q } : {}, page)
 }
 
 export async function getProductByHandle(handle: string) {

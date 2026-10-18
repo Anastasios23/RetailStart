@@ -70,13 +70,15 @@ export const DEFAULT_PRESENTATION_CONFIG: PublicPresentationConfig = {
       { label: "Home", href: "/", order: 1 },
       { label: "Products", href: "/products", order: 2 },
       { label: "Categories", href: "/categories", order: 3 },
-      { label: "Cart", href: "/cart", order: 4 },
+      { label: "Search", href: "/search", order: 4 },
+      { label: "Cart", href: "/cart", order: 5 },
     ],
     footer: [
       { label: "Home", href: "/", order: 1 },
       { label: "Products", href: "/products", order: 2 },
       { label: "Categories", href: "/categories", order: 3 },
-      { label: "Cart", href: "/cart", order: 4 },
+      { label: "Search", href: "/search", order: 4 },
+      { label: "Cart", href: "/cart", order: 5 },
     ],
   },
   seo: {

@@ -4,15 +4,10 @@ Reusable Retail E-commerce Starter for client businesses selling physical produc
 
 ## Current status
 
-Implemented through Phase 7 of the [implementation plan](docs/implementation-plan.md):
-a Next.js storefront and a Medusa/PostgreSQL commerce backend in a pnpm
-workspace, with catalog browsing (products, variants, categories), a persistent
-cart, guest checkout, a Stripe test-mode payment flow, and authoritative order
-confirmation and reconciliation.
+All 17 phases of the [implementation plan](docs/implementation-plan.md) are complete, verified, and merged on `main`:
+a Next.js storefront and a Medusa/PostgreSQL commerce backend in a pnpm workspace, with catalog browsing (products, variants, categories), keyword search, a persistent cart, guest checkout, a Stripe test-mode payment flow, authoritative order confirmation and reconciliation, transactional notifications, fulfillments/refunds/restocking, media workflow, bulk onboarding, observability, zero-downtime deployment lifecycle, backup/recovery, client presentation configuration, privacy lifecycle CAS, and production readiness verification.
 
-V1 is not complete. Phases 8-17 (notifications, fulfillment and refunds, media,
-bulk onboarding, observability, deployment, backup and recovery, client
-presentation, privacy, and production readiness) remain planned/incomplete.
+The platform meets all V1 production-readiness release criteria indexed in [docs/release-readiness-v1.md](docs/release-readiness-v1.md).
 
 ## Documentation
 
@@ -21,6 +16,7 @@ presentation, privacy, and production readiness) remain planned/incomplete.
 - [V1 scope](docs/scope-v1.md)
 - [Architecture baseline](docs/architecture.md)
 - [Implementation plan](docs/implementation-plan.md)
+- [Release readiness index](docs/release-readiness-v1.md)
 - [Architecture decisions](docs/decisions/README.md)
 
 ## Accepted architecture direction

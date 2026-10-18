@@ -72,14 +72,15 @@ V1 does not include dedicated reporting or analytics functionality. The admin in
 
 ## Current phase
 
-Implemented through Phase 7 of `docs/implementation-plan.md`: the pnpm
+All 17 phases of `docs/implementation-plan.md` are complete, verified, and merged on `main`: the pnpm
 workspace, the Medusa/PostgreSQL commerce baseline, catalog browsing (products,
-variants, categories), a persistent cart, guest checkout, a Stripe test-mode
-payment flow, and authoritative order confirmation and reconciliation.
+variants, categories), keyword search, a persistent cart, guest checkout, a Stripe test-mode
+payment flow, authoritative order confirmation and reconciliation, transactional notifications,
+fulfillments/refunds/restocking, media workflow, bulk onboarding, observability, zero-downtime
+deployment lifecycle, backup/recovery, client presentation configuration, privacy lifecycle CAS,
+and production-readiness verification.
 
-V1 is not complete. Phases 8-17 (notifications, fulfillment and refunds, media,
-bulk onboarding, observability, deployment, backup and recovery, client
-presentation, privacy, and production readiness) remain planned/incomplete.
+V1 release acceptance criteria are satisfied per `docs/release-readiness-v1.md`.
 
 ## Deployment model
 

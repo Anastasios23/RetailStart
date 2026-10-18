@@ -6,7 +6,8 @@ export function Pagination({ basePath, page, totalPages }: {
   totalPages: number
 }) {
   if (totalPages <= 1) return null
-  const href = (target: number) => (target === 1 ? basePath : `${basePath}?page=${target}`)
+  const separator = basePath.includes("?") ? "&" : "?"
+  const href = (target: number) => (target === 1 ? basePath : `${basePath}${separator}page=${target}`)
 
   return (
     <nav className="pagination" aria-label="Pagination">
