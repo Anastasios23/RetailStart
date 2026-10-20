@@ -20,9 +20,9 @@
 
 ## Current project state
 
-- Phases 1-7 are implemented under `apps/backend` and `apps/storefront`: Medusa/PostgreSQL baseline, catalog (products, variants, categories), persistent cart, guest checkout, Stripe test-mode payment, and authoritative order confirmation/reconciliation. V1 is not complete; Phases 8-17 remain planned/incomplete (see `docs/implementation-plan.md`).
+- All 17 phases of `docs/implementation-plan.md` are implemented and merged on `main`: Medusa/PostgreSQL baseline, catalog (products, variants, categories), basic keyword search, persistent cart, guest checkout, Stripe test-mode payment, authoritative order confirmation/reconciliation, transactional notifications, post-purchase operations (fulfillments, refunds, restock), media workflow, bulk onboarding, observability, zero-downtime deployment lifecycle, backup/recovery, client presentation configuration, privacy lifecycle CAS, and production-readiness verification.
 - The workspace uses pnpm `10.11.1` and Node.js `22.23.2`; package versions and commands are recorded in the manifests and implementation plan.
-- Email, object-storage, deployment, and other provider configuration for Phases 8-17 remain deferred until the relevant phase is approved.
+- The platform satisfies all release gates indexed in `docs/release-readiness-v1.md`.
 
 ## Package Manager
 
