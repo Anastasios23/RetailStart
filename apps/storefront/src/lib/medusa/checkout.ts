@@ -19,7 +19,7 @@ import {
 import { hasStoredCheckoutContact } from "./checkout-validation"
 import { getMedusaClient } from "./client"
 
-export const checkoutCartFields = "region_id,email,currency_code,item_subtotal,item_tax_total,shipping_subtotal,shipping_tax_total,shipping_total,tax_total,subtotal,total,*shipping_address,*billing_address,*items,*shipping_methods,*payment_collection,*payment_collection.payment_sessions,completed_at"
+export const checkoutCartFields = "region_id,email,currency_code,item_subtotal,item_tax_total,shipping_subtotal,shipping_tax_total,shipping_total,tax_total,subtotal,total,metadata,*shipping_address,*billing_address,*items,*shipping_methods,*payment_collection,*payment_collection.payment_sessions,completed_at"
 
 export type CheckoutCountry = {
   code: string
@@ -231,6 +231,8 @@ export async function getCheckoutPageData(): Promise<CheckoutPageData> {
       if (decision.kind === "reuse") {
         payment = projectStripePaymentSession(cart.payment_collection!, decision.session)
       } else if (decision.kind === "initialize") {
+        // Includes reason "stale" (amount/total drift): POST payment-session refreshes
+        // the collection and returns a new client secret. Do not reuse the prior secret.
         const prepared = await initializeStripePaymentSession(cart)
 
         if (prepared.kind === "ready") {

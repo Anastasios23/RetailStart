@@ -31,6 +31,7 @@ test("checkout cart projection includes the state needed for countries, address,
     "tax_total",
     "subtotal",
     "total",
+    "metadata",
     "*shipping_address",
     "*billing_address",
   ]) {
