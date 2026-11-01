@@ -1,49 +1,67 @@
 import type { Metadata } from "next"
 import Link from "next/link"
+import { redirect } from "next/navigation"
 
 import { CheckoutForm } from "../components/checkout-form"
 import { getCheckoutPageData } from "../../lib/medusa/checkout"
-import { redirect } from "next/navigation"
 import { ConfirmationClient } from "./confirmation/confirmation-client"
+import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
+import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 
 export const dynamic = "force-dynamic"
 
 export const metadata: Metadata = {
   title: "Checkout",
-  description: "Prepare a guest cart with contact, delivery, shipping, tax, and current totals.",
+  description: "Ολοκλήρωση παραγγελίας με στοιχεία επικοινωνίας, παράδοση και πληρωμή.",
 }
 
 function CheckoutUnavailableState() {
   return (
-    <main className="page-shell checkout-page" aria-labelledby="checkout-unavailable-title">
-      <header className="page-heading">
-        <p className="eyebrow">Guest checkout</p>
-        <h1 id="checkout-unavailable-title">Checkout temporarily unavailable</h1>
-        <p className="lede">
-          We could not retrieve the current commerce state. Your cart was not replaced or changed. Please try again.
-        </p>
-      </header>
-      <div className="action-row checkout-unavailable__actions">
-        <Link className="button-link" href="/checkout">Try checkout again</Link>
-        <Link className="text-link" href="/cart">Return to cart</Link>
-      </div>
+    <main className="mx-auto flex w-full max-w-6xl flex-col gap-6 px-4 py-6">
+      <Badge variant="secondary" className="w-fit bg-accent text-accent-foreground">
+        Checkout
+      </Badge>
+      <Card className="shadow-none">
+        <CardHeader>
+          <CardTitle>Το checkout δεν είναι διαθέσιμο προσωρινά</CardTitle>
+        </CardHeader>
+        <CardContent className="text-sm text-muted-foreground">
+          Δεν μπορέσαμε να φορτώσουμε την κατάσταση παραγγελίας. Το καλάθι σας δεν άλλαξε.
+        </CardContent>
+        <CardFooter className="flex flex-wrap gap-2">
+          <Button asChild>
+            <Link href="/checkout">Δοκίμασε ξανά</Link>
+          </Button>
+          <Button asChild variant="outline">
+            <Link href="/cart">Επιστροφή στο καλάθι</Link>
+          </Button>
+        </CardFooter>
+      </Card>
     </main>
   )
 }
 
 function CheckoutReconciliationUnavailableState() {
   return (
-    <main className="page-shell checkout-page" aria-labelledby="checkout-reconciliation-title">
-      <header className="page-heading">
-        <p className="eyebrow">Guest checkout</p>
-        <h1 id="checkout-reconciliation-title">Order confirmation temporarily unavailable</h1>
-        <p className="lede">
-          Medusa reports that checkout has completed, but we could not retrieve the order confirmation. Do not try to pay again. Refresh to check the order status.
-        </p>
-      </header>
-      <div className="action-row checkout-unavailable__actions">
-        <Link className="button-link" href="/checkout">Refresh order status</Link>
-      </div>
+    <main className="mx-auto flex w-full max-w-6xl flex-col gap-6 px-4 py-6">
+      <Badge variant="secondary" className="w-fit bg-accent text-accent-foreground">
+        Checkout
+      </Badge>
+      <Card className="shadow-none">
+        <CardHeader>
+          <CardTitle>Η επιβεβαίωση παραγγελίας δεν είναι διαθέσιμη</CardTitle>
+        </CardHeader>
+        <CardContent className="text-sm text-muted-foreground">
+          Η πληρωμή φαίνεται ολοκληρωμένη, αλλά δεν μπορέσαμε να εμφανίσουμε την επιβεβαίωση. Μην
+          πληρώσετε ξανά — ανανεώστε για έλεγχο κατάστασης.
+        </CardContent>
+        <CardFooter>
+          <Button asChild>
+            <Link href="/checkout">Έλεγχος κατάστασης</Link>
+          </Button>
+        </CardFooter>
+      </Card>
     </main>
   )
 }
@@ -65,14 +83,26 @@ export default async function CheckoutPage() {
 
   if (result.kind === "confirmation") {
     return (
-      <main className="page-shell checkout-page" aria-labelledby="checkout-confirmation-title">
+      <main className="mx-auto flex w-full max-w-6xl flex-col gap-6 px-4 py-6">
         <ConfirmationClient {...result.confirmation} />
       </main>
     )
   }
 
   return (
-    <main className="page-shell checkout-page" aria-labelledby="checkout-title">
+    <main className="mx-auto flex w-full max-w-6xl flex-col gap-6 px-4 py-6" aria-labelledby="checkout-title">
+      <header className="flex flex-col gap-2">
+        <Badge variant="secondary" className="w-fit bg-accent text-accent-foreground">
+          Checkout
+        </Badge>
+        <h1 id="checkout-title" className="text-2xl font-bold tracking-tight sm:text-3xl">
+          Ολοκλήρωση παραγγελίας
+        </h1>
+        <p className="max-w-2xl text-sm text-muted-foreground sm:text-base">
+          Συμπλήρωσε στοιχεία επικοινωνίας και παράδοσης, επίλεξε αποστολή και πλήρωσε ασφαλή με
+          κάρτα.
+        </p>
+      </header>
       <CheckoutForm
         cart={result.cart}
         countries={result.countries}

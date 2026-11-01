@@ -1,7 +1,11 @@
 "use client"
 
 import { useEffect, useRef } from "react"
+import Link from "next/link"
 
+import { Button } from "@/components/ui/button"
+import { Badge } from "@/components/ui/badge"
+import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { formatMoney } from "../../../lib/money"
 
 type ConfirmationClientProps = {
@@ -41,29 +45,42 @@ export function ConfirmationClient({
   const reference = customDisplayId || displayId
 
   return (
-    <section className="checkout-section checkout-confirmation" aria-labelledby="checkout-confirmation-title">
-      <p className="eyebrow">Payment complete</p>
-      <h1 id="checkout-confirmation-title">Thank you for your order.</h1>
-      <p>Your payment was captured and Medusa confirmed the order.</p>
-      <dl className="checkout-confirmation__facts">
-        {reference !== undefined ? (
-          <div>
-            <dt>Reference</dt>
-            <dd>{reference}</dd>
-          </div>
-        ) : null}
-        <div>
-          <dt>Total</dt>
-          <dd>{formatMoney(total, currencyCode, "en-CY")}</dd>
-        </div>
-        <div>
-          <dt>Currency</dt>
-          <dd>{currencyCode.toUpperCase()}</dd>
-        </div>
-      </dl>
-      <a className="button-link" href="/products">
-        Continue shopping
-      </a>
-    </section>
+    <div className="flex flex-col gap-6">
+      <Badge variant="secondary" className="w-fit bg-accent text-accent-foreground">
+        Επιβεβαίωση
+      </Badge>
+      <Card className="shadow-none" aria-labelledby="checkout-confirmation-title">
+        <CardHeader>
+          <p className="text-sm font-medium text-muted-foreground">Πληρωμή ολοκληρώθηκε</p>
+          <CardTitle id="checkout-confirmation-title">Ευχαριστούμε για την παραγγελία</CardTitle>
+        </CardHeader>
+        <CardContent className="flex flex-col gap-4 text-sm">
+          <p className="text-muted-foreground">
+            Η πληρωμή καταχωρήθηκε και η παραγγελία επιβεβαιώθηκε.
+          </p>
+          <dl className="grid gap-3 sm:grid-cols-3">
+            {reference !== undefined ? (
+              <div className="flex flex-col gap-1">
+                <dt className="text-muted-foreground">Αριθμός</dt>
+                <dd className="font-semibold">{reference}</dd>
+              </div>
+            ) : null}
+            <div className="flex flex-col gap-1">
+              <dt className="text-muted-foreground">Σύνολο</dt>
+              <dd className="font-semibold">{formatMoney(total, currencyCode, "el-CY")}</dd>
+            </div>
+            <div className="flex flex-col gap-1">
+              <dt className="text-muted-foreground">Νόμισμα</dt>
+              <dd className="font-semibold">{currencyCode.toUpperCase()}</dd>
+            </div>
+          </dl>
+        </CardContent>
+        <CardFooter>
+          <Button asChild>
+            <Link href="/products">Συνέχεια αγορών</Link>
+          </Button>
+        </CardFooter>
+      </Card>
+    </div>
   )
 }

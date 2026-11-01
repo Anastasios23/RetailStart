@@ -1,10 +1,20 @@
 import type { Metadata } from "next"
+import { Manrope } from "next/font/google"
+import type { ReactNode } from "react"
 
-import { getPublicPresentationConfig } from "../lib/presentation/config"
-import { SiteHeader } from "./components/site-header"
+import { StoreFooter } from "@/components/store-footer"
+import { StoreHeader } from "@/components/store-header"
+import { getActivePresentationConfig } from "@/lib/presentation/client-bundle"
+
 import "./globals.css"
 
-const presentation = getPublicPresentationConfig()
+const manrope = Manrope({
+  subsets: ["latin", "greek"],
+  variable: "--font-sans",
+  display: "swap",
+})
+
+const presentation = getActivePresentationConfig()
 
 export const metadata: Metadata = {
   title: {
@@ -18,13 +28,14 @@ export const metadata: Metadata = {
 export default function RootLayout({
   children,
 }: Readonly<{
-  children: React.ReactNode
+  children: ReactNode
 }>) {
   return (
-    <html lang="en">
-      <body>
-        <SiteHeader />
+    <html lang="el" className={manrope.variable}>
+      <body className="font-sans">
+        <StoreHeader />
         {children}
+        <StoreFooter />
       </body>
     </html>
   )

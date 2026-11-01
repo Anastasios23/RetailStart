@@ -3,6 +3,8 @@
 import { useActionState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 
+import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
 import { removeItemAction, updateItemAction } from "../actions/cart-actions"
 import { initialCartActionState } from "../actions/cart-action-state"
 
@@ -11,10 +13,7 @@ type CartItemActionsProps = {
   quantity: number
 }
 
-export function CartItemActions({
-  lineItemId,
-  quantity,
-}: CartItemActionsProps) {
+export function CartItemActions({ lineItemId, quantity }: CartItemActionsProps) {
   const router = useRouter()
   const [updateState, updateFormAction, updatePending] = useActionState(
     updateItemAction,
@@ -42,35 +41,49 @@ export function CartItemActions({
             ? removeState.message
             : null
 
+  const isSuccess =
+    Boolean(message) &&
+    (message!.includes("updated") ||
+      message!.includes("removed") ||
+      message!.includes("ενημερώ") ||
+      message!.includes("αφαιρέ"))
+
   return (
-    <div className="cart-item__actions">
-      <form action={updateFormAction} className="cart-mutation-form cart-mutation-form--quantity">
+    <div className="flex flex-col gap-3">
+      <form action={updateFormAction} className="flex flex-wrap items-end gap-2">
         <input type="hidden" name="lineItemId" value={lineItemId} />
-        <label htmlFor={`quantity-${lineItemId}`}>Quantity</label>
-        <input
-          id={`quantity-${lineItemId}`}
-          name="quantity"
-          type="number"
-          min="1"
-          step="1"
-          inputMode="numeric"
-          defaultValue={quantity}
-          required
-        />
-        <button className="button-link button-link--secondary" type="submit" disabled={updatePending}>
-          {updatePending ? "Updating…" : "Update"}
-        </button>
+        <div className="flex flex-col gap-1.5">
+          <label htmlFor={`quantity-${lineItemId}`} className="text-xs font-medium text-muted-foreground">
+            Ποσότητα
+          </label>
+          <Input
+            id={`quantity-${lineItemId}`}
+            name="quantity"
+            type="number"
+            min={1}
+            step={1}
+            inputMode="numeric"
+            defaultValue={quantity}
+            required
+            className="h-10 w-24 rounded-xl"
+          />
+        </div>
+        <Button type="submit" variant="outline" size="sm" disabled={updatePending}>
+          {updatePending ? "Ενημέρωση…" : "Ενημέρωση"}
+        </Button>
       </form>
-      <form action={removeFormAction} className="cart-mutation-form">
+
+      <form action={removeFormAction}>
         <input type="hidden" name="lineItemId" value={lineItemId} />
-        <button className="text-button" type="submit" disabled={removePending}>
-          {removePending ? "Removing…" : "Remove"}
-        </button>
+        <Button type="submit" variant="ghost" size="sm" className="px-0 text-destructive" disabled={removePending}>
+          {removePending ? "Αφαίρεση…" : "Αφαίρεση"}
+        </Button>
       </form>
+
       {message ? (
         <p
-          className={`mutation-message${message.includes("updated") || message.includes("removed") ? "" : " mutation-message--error"}`}
-          role={message.includes("updated") || message.includes("removed") ? "status" : "alert"}
+          className={`text-sm ${isSuccess ? "text-muted-foreground" : "text-destructive"}`}
+          role={isSuccess ? "status" : "alert"}
           aria-live="polite"
         >
           {message}

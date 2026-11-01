@@ -23,21 +23,34 @@ export async function addItemAction(
   const quantity = getPositiveSafeInteger(formData.get("quantity"))
 
   if (!variantId) {
-    return invalidInput("This product variant is not available.")
+    return invalidInput("Αυτό το προϊόν δεν είναι διαθέσιμο.")
   }
 
   if (quantity === null) {
-    return invalidInput("Enter a valid quantity greater than zero.")
+    return invalidInput("Δώστε έγκυρη ποσότητα μεγαλύτερη από μηδέν.")
   }
 
   try {
     await addLineItem(variantId, quantity)
     revalidatePath("/cart")
 
-    return { status: "success", message: "Item added to cart." }
+    return { status: "success", message: "Προστέθηκε στο καλάθι." }
   } catch (error) {
     return getCartActionErrorMessage(error, "add")
   }
+}
+
+/**
+ * Legacy Wolt-mirror add-to-cart. Disabled by ADR-0154: browse/cart use Medusa
+ * variants only via `addItemAction`.
+ */
+export async function addCatalogItemAction(
+  _previousState: CartActionState,
+  _formData: FormData
+): Promise<CartActionState> {
+  return invalidInput(
+    "Αυτό το προϊόν δεν είναι διαθέσιμο από τον κατάλογο του καταστήματος."
+  )
 }
 
 export async function updateItemAction(

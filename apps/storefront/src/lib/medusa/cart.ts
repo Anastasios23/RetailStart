@@ -10,7 +10,8 @@ import {
 } from "./cart-errors"
 import { clearCartId, readCartId, writeCartId } from "./cart-cookie"
 
-const cartFields = "*items,completed_at"
+const cartFields =
+  "*items,currency_code,total,subtotal,item_subtotal,item_total,shipping_total,tax_total,completed_at"
 
 export type CurrentCartResult =
   | { kind: "missing" | "stale" }

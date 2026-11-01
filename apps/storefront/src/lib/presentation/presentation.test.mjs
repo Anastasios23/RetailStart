@@ -8,8 +8,30 @@ test("presentation config falls back to default baseline when custom config is a
   assert.equal(config.branding.name, "Retail Starter")
   assert.equal(config.seo.default_title, "Retail Starter")
   assert.equal(config.seo.title_template, "%s | Retail Starter")
-  assert.equal(config.navigation.header.length, 4)
+  assert.equal(config.navigation.header.length, 5)
   assert.equal(config.navigation.header[0].label, "Home")
+})
+
+test("presentation config accepts pharmacy-style Greek branding override", () => {
+  const config = getPublicPresentationConfig({
+    branding: {
+      name: "Φαρμακείο Κατερίνα Καγιά",
+      tagline: "Personal care · Wellness · Cosmetics",
+    },
+    seo: {
+      default_title: "Φαρμακείο Κατερίνα Καγιά | Λατσιά",
+      title_template: "%s | Φαρμακείο Κατερίνα Καγιά",
+      default_description: "Φαρμακείο στα Λατσιά",
+      robots: "index, follow",
+    },
+    navigation: {
+      header: [{ label: "Αρχική", href: "/" }],
+      footer: [{ label: "Προϊόντα", href: "/products" }],
+    },
+  })
+  assert.equal(config.branding.name, "Φαρμακείο Κατερίνα Καγιά")
+  assert.equal(config.navigation.header[0].label, "Αρχική")
+  assert.match(config.seo.default_title, /Κατερίνα Καγιά/)
 })
 
 test("presentation config merges client branding overrides without clobbering other fields", () => {

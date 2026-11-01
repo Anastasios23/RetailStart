@@ -82,6 +82,8 @@ and production-readiness verification.
 
 V1 release acceptance criteria are satisfied per `docs/release-readiness-v1.md`.
 
+A 2026-10-27 ponytail audit (`docs/ponytail-audit-v1.md`) confirmed the product is a per-client store engine, not a multi-tenant Shopify-like platform. Intended reuse: copy the repo for each business and change brand/presentation (and client data/secrets) while keeping commerce behavior. First demo/client delivery work is prioritized in `docs/client-delivery-next-steps.md`.
+
 ## Deployment model
 
 Each client should initially have an isolated deployment. The project is not currently planned as a multi-tenant SaaS architecture.

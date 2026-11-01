@@ -21,6 +21,14 @@ import {
   hasStoredCheckoutContact,
   validateCheckoutContact,
 } from "../../lib/medusa/checkout-validation"
+import {
+  isKayiaAcsPoint,
+  isKayiaLocalDelivery,
+  isKayiaPickup,
+  isPostalCodeInLocalZone,
+  KAYIA_PHARMACY_ADDRESS,
+  resolveKayiaShippingMethod,
+} from "../../lib/presentation/kayia-shipping"
 import type { CheckoutActionState } from "./checkout-action-state"
 
 // Checkout and other business mutations intentionally remain same-origin
@@ -99,7 +107,7 @@ export async function selectShippingMethodAction(
   const optionId = getIdentifier(formData.get("shippingOptionId"))
 
   if (!optionId) {
-    return errorState("Choose an available shipping option.")
+    return errorState("Επίλεξε διαθέσιμη μέθοδο αποστολής.")
   }
 
   const cartId = await readCartId()
@@ -116,16 +124,74 @@ export async function selectShippingMethodAction(
     }
 
     if (!hasStoredCheckoutContact(cart.email, cart.shipping_address)) {
-      return errorState("Save your contact and delivery details before choosing shipping.")
+      return errorState("Αποθήκευσε στοιχεία επικοινωνίας και διεύθυνση πριν την αποστολή.")
     }
 
     const options = await getAvailableShippingOptions(cartId)
+    const selected = options.find((option) => option.id === optionId)
 
-    if (!options.some((option) => option.id === optionId)) {
-      return errorState("That shipping option is no longer available. Refresh and choose another option.")
+    if (!selected) {
+      return errorState("Αυτή η μέθοδος αποστολής δεν είναι πλέον διαθέσιμη. Ανανέωσε τη σελίδα.")
+    }
+
+    const method = resolveKayiaShippingMethod(selected)
+    const acsPickupPoint =
+      typeof formData.get("acs_pickup_point") === "string"
+        ? formData.get("acs_pickup_point")!.toString().trim()
+        : ""
+
+    if (isKayiaAcsPoint(method) && acsPickupPoint.length < 3) {
+      return errorState("Συμπλήρωσε το σημείο ACS (όνομα ή διεύθυνση σημείου).")
+    }
+
+    if (isKayiaLocalDelivery(method)) {
+      const postal = cart.shipping_address?.postal_code
+      if (!isPostalCodeInLocalZone(postal)) {
+        return errorState(
+          "Ο Τ.Κ. δεν ανήκει στη ζώνη τοπικής παράδοσης. Επίλεξε παράδοση Κύπρου ή ACS."
+        )
+      }
     }
 
     const client = getMedusaClient()
+    const existingMetadata =
+      cart.metadata && typeof cart.metadata === "object" && !Array.isArray(cart.metadata)
+        ? { ...cart.metadata }
+        : {}
+
+    const nextMetadata: Record<string, unknown> = {
+      ...existingMetadata,
+      kayia_shipping_method: method,
+    }
+
+    if (isKayiaAcsPoint(method)) {
+      nextMetadata.acs_pickup_point = acsPickupPoint
+    } else {
+      delete nextMetadata.acs_pickup_point
+    }
+
+    const addressUpdate = isKayiaPickup(method)
+      ? {
+          shipping_address: { ...KAYIA_PHARMACY_ADDRESS },
+          billing_address: {
+            first_name: cart.shipping_address?.first_name || KAYIA_PHARMACY_ADDRESS.first_name,
+            last_name: cart.shipping_address?.last_name || KAYIA_PHARMACY_ADDRESS.last_name,
+            address_1: cart.shipping_address?.address_1 || KAYIA_PHARMACY_ADDRESS.address_1,
+            city: cart.shipping_address?.city || KAYIA_PHARMACY_ADDRESS.city,
+            postal_code: cart.shipping_address?.postal_code || KAYIA_PHARMACY_ADDRESS.postal_code,
+            country_code: cart.shipping_address?.country_code || KAYIA_PHARMACY_ADDRESS.country_code,
+          },
+        }
+      : {}
+
+    await client.store.cart.update(
+      cartId,
+      {
+        metadata: nextMetadata,
+        ...addressUpdate,
+      },
+      { fields: "*items,*shipping_methods,*shipping_address" }
+    )
 
     await client.store.cart.addShippingMethod(
       cartId,
@@ -138,7 +204,7 @@ export async function selectShippingMethodAction(
 
     return {
       status: "success",
-      message: "Shipping method saved.",
+      message: "Η μέθοδος αποστολής αποθηκεύτηκε.",
     }
   } catch (error) {
     return getCheckoutActionErrorMessage(error, "shipping-method")

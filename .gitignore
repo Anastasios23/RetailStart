@@ -13,3 +13,8 @@ apps/**/coverage/
 .env.*
 !.env.example
 !.env.template
+
+# Scratch Wolt scrape artifacts (canonical catalog lives in storefront presentation)
+.tmp-wolt/
+
+.tmp-kk-brand/

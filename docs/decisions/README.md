@@ -157,6 +157,7 @@ This directory contains concise records of important, approved architecture deci
 - [ADR-0151: Concurrent lifecycle-policy activation control](0151-concurrent-lifecycle-policy-activation-control.md)
 - [ADR-0152: Lifecycle-policy activation-operation idempotency](0152-lifecycle-policy-activation-operation-idempotency.md)
 - [ADR-0153: Storefront product listing pagination](0153-storefront-product-listing-pagination.md)
+- [ADR-0154: Medusa Store API browse authority](0154-medusa-store-api-browse-authority.md)
 
 ## Record format
 
