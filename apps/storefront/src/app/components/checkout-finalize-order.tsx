@@ -1,8 +1,11 @@
 "use client"
 
 import { useActionState, useEffect, useRef, useState, useTransition } from "react"
+import Link from "next/link"
 import { useRouter } from "next/navigation"
 
+import { Button } from "@/components/ui/button"
+import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { finalizeCheckoutAction } from "../actions/checkout-actions"
 import {
   initialCheckoutActionState,
@@ -20,27 +23,35 @@ export function CheckoutConfirmationView({
   const reference = confirmation.customDisplayId || confirmation.displayId
 
   return (
-    <section className="checkout-section checkout-confirmation" aria-labelledby="checkout-confirmation-title">
-      <p className="eyebrow">Payment complete</p>
-      <h2 id="checkout-confirmation-title">Thank you for your order.</h2>
-      <p>Your payment was captured and Medusa confirmed the order.</p>
-      <dl className="checkout-confirmation__facts">
-        {reference !== undefined ? (
-          <div>
-            <dt>Reference</dt>
-            <dd>{reference}</dd>
+    <Card className="shadow-none">
+      <CardHeader>
+        <p className="text-sm font-medium text-muted-foreground">Πληρωμή ολοκληρώθηκε</p>
+        <CardTitle>Ευχαριστούμε για την παραγγελία</CardTitle>
+      </CardHeader>
+      <CardContent className="flex flex-col gap-4 text-sm">
+        <p className="text-muted-foreground">
+          Η πληρωμή καταχωρήθηκε και η παραγγελία επιβεβαιώθηκε.
+        </p>
+        <dl className="grid gap-3 sm:grid-cols-3">
+          {reference !== undefined ? (
+            <div className="flex flex-col gap-1">
+              <dt className="text-muted-foreground">Αριθμός</dt>
+              <dd className="font-semibold">{reference}</dd>
+            </div>
+          ) : null}
+          <div className="flex flex-col gap-1">
+            <dt className="text-muted-foreground">Σύνολο</dt>
+            <dd className="font-semibold">
+              {formatMoney(confirmation.total, confirmation.currencyCode, "el-CY")}
+            </dd>
           </div>
-        ) : null}
-        <div>
-          <dt>Total</dt>
-          <dd>{formatMoney(confirmation.total, confirmation.currencyCode, "en-CY")}</dd>
-        </div>
-        <div>
-          <dt>Currency</dt>
-          <dd>{confirmation.currencyCode.toUpperCase()}</dd>
-        </div>
-      </dl>
-    </section>
+          <div className="flex flex-col gap-1">
+            <dt className="text-muted-foreground">Νόμισμα</dt>
+            <dd className="font-semibold">{confirmation.currencyCode.toUpperCase()}</dd>
+          </div>
+        </dl>
+      </CardContent>
+    </Card>
   )
 }
 
@@ -71,10 +82,10 @@ export function shouldAutoFinalizeFromUrl(search: string): boolean {
  * further finalize attempt — Medusa may have compensated the prior payment.
  */
 export function CheckoutFinalizeOrder({
-  title = "Complete your order",
+  title = "Ολοκλήρωση παραγγελίας",
   intro,
-  submitLabel = "Complete order",
-  pendingLabel = "Placing order…",
+  submitLabel = "Ολοκλήρωση παραγγελίας",
+  pendingLabel = "Καταχώρηση…",
   initialMessage,
 }: CheckoutFinalizeOrderProps) {
   const router = useRouter()
@@ -135,45 +146,59 @@ export function CheckoutFinalizeOrder({
 
   if (needsAuthoritativeRefresh) {
     return (
-      <section className="checkout-section" aria-labelledby="finalize-order-title">
-        <h2 id="finalize-order-title">{title}</h2>
-        <p className="checkout-message checkout-message--error" role="alert">
-          Order confirmation failed. Do not submit another payment while checkout is being reconciled.
-          Refresh checkout so Medusa can decide the current payment state.
-        </p>
-        {state.message ? (
-          <p className="checkout-message checkout-message--error" role="alert" aria-live="polite">
-            {state.message}
+      <Card className="shadow-none">
+        <CardHeader>
+          <CardTitle>{title}</CardTitle>
+        </CardHeader>
+        <CardContent className="flex flex-col gap-3 text-sm">
+          <p className="text-destructive" role="alert">
+            Η επιβεβαίωση παραγγελίας απέτυχε. Μην υποβάλεις άλλη πληρωμή όσο γίνεται
+            συγχρονισμός. Ανανέωσε το checkout για έλεγχο κατάστασης.
           </p>
-        ) : null}
-        <a className="button-link button-link--secondary" href="/checkout">
-          Refresh checkout
-        </a>
-      </section>
+          {state.message ? (
+            <p className="text-destructive" role="alert" aria-live="polite">
+              {state.message}
+            </p>
+          ) : null}
+        </CardContent>
+        <CardFooter>
+          <Button asChild variant="outline">
+            <Link href="/checkout">Ανανέωση</Link>
+          </Button>
+        </CardFooter>
+      </Card>
     )
   }
 
   const message = state.message || initialMessage
 
   return (
-    <section className="checkout-section" aria-labelledby="finalize-order-title">
-      <h2 id="finalize-order-title">{title}</h2>
-      <p className="checkout-section__intro">{intro}</p>
-      <p className="checkout-message" role="status" aria-live="polite">
-        Do not enter payment details again. Your payment was already accepted.
-      </p>
-      <button className="button-link" type="button" onClick={handleFinalize} disabled={pending}>
-        {pending ? pendingLabel : submitLabel}
-      </button>
-      {message ? (
-        <p
-          className={`checkout-message${state.status === "error" ? " checkout-message--error" : ""}`}
-          role={state.status === "error" ? "alert" : "status"}
-          aria-live="polite"
-        >
-          {message}
+    <Card className="shadow-none">
+      <CardHeader>
+        <CardTitle>{title}</CardTitle>
+      </CardHeader>
+      <CardContent className="flex flex-col gap-4 text-sm">
+        <p className="text-muted-foreground">{intro}</p>
+        <p className="text-muted-foreground" role="status" aria-live="polite">
+          Μην εισάγεις ξανά στοιχεία πληρωμής. Η πληρωμή έχει ήδη γίνει αποδεκτή.
         </p>
-      ) : null}
-    </section>
+        <Button type="button" onClick={handleFinalize} disabled={pending}>
+          {pending ? pendingLabel : submitLabel}
+        </Button>
+        {message ? (
+          <p
+            className={
+              state.status === "error"
+                ? "text-destructive"
+                : "text-muted-foreground"
+            }
+            role={state.status === "error" ? "alert" : "status"}
+            aria-live="polite"
+          >
+            {message}
+          </p>
+        ) : null}
+      </CardContent>
+    </Card>
   )
 }

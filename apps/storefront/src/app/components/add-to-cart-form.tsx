@@ -3,9 +3,8 @@
 import { useActionState, useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 
-import {
-  addItemAction,
-} from "../actions/cart-actions"
+import { Button } from "@/components/ui/button"
+import { addItemAction } from "../actions/cart-actions"
 import { initialCartActionState } from "../actions/cart-action-state"
 
 type AddToCartFormProps = {
@@ -17,10 +16,7 @@ type AddToCartFormProps = {
 export function AddToCartForm({ variantId, disabled = false, children }: AddToCartFormProps) {
   const router = useRouter()
   const [hydrated, setHydrated] = useState(false)
-  const [state, formAction, pending] = useActionState(
-    addItemAction,
-    initialCartActionState
-  )
+  const [state, formAction, pending] = useActionState(addItemAction, initialCartActionState)
 
   useEffect(() => {
     setHydrated(true)
@@ -35,22 +31,26 @@ export function AddToCartForm({ variantId, disabled = false, children }: AddToCa
   return (
     <form
       action={formAction}
-      className="cart-mutation-form"
+      className="flex flex-col gap-4"
       onSubmit={(event) => {
         if (!hydrated || !variantId || disabled || pending) event.preventDefault()
       }}
     >
       <input type="hidden" name="variantId" value={variantId ?? ""} />
       <input type="hidden" name="quantity" value="1" />
-      <fieldset className="product-purchase-fields" disabled={!hydrated || pending}>
-        <legend className="sr-only">Add product to cart</legend>
+      <fieldset className="flex flex-col gap-4 border-0 p-0" disabled={!hydrated || pending}>
+        <legend className="sr-only">Προσθήκη στο καλάθι</legend>
         {children}
-        <button className="button-link" type="submit" disabled={!hydrated || pending || disabled || !variantId}>
-          {pending ? "Adding…" : "Add to cart"}
-        </button>
+        <Button
+          type="submit"
+          disabled={!hydrated || pending || disabled || !variantId}
+          className="w-full sm:w-auto"
+        >
+          {pending ? "Προσθήκη…" : "Προσθήκη στο καλάθι"}
+        </Button>
       </fieldset>
       {state.status === "error" ? (
-        <p className="mutation-message mutation-message--error" role="alert">
+        <p className="text-sm text-destructive" role="alert">
           {state.message}
         </p>
       ) : null}

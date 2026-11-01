@@ -1,14 +1,23 @@
 import type { Metadata } from "next"
 import { notFound } from "next/navigation"
-import { isPageOutOfRange, parsePageParam, searchProducts } from "../../lib/medusa/products"
-import { Pagination } from "../components/pagination"
-import { ProductGrid } from "../components/product-grid"
+
+import { Pagination } from "@/app/components/pagination"
+import { ProductGrid } from "@/app/components/product-grid"
+import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import {
+  isPageOutOfRange,
+  parsePageParam,
+  searchProducts,
+  StorefrontCatalogError,
+} from "@/lib/medusa/products"
 
 export const dynamic = "force-dynamic"
 
 export const metadata: Metadata = {
-  title: "Search",
-  description: "Search products in the Retail Starter catalog.",
+  title: "Αναζήτηση",
+  description: "Αναζήτηση προϊόντων στον κατάλογο του φαρμακείου.",
 }
 
 function parseQueryParam(value: string | string[] | undefined): string {
@@ -26,54 +35,71 @@ export default async function SearchPage({
   const query = parseQueryParam(resolvedParams.q)
   const page = parsePageParam(resolvedParams.page)
 
-  let productPage = null
+  let productPage: Awaited<ReturnType<typeof searchProducts>> | null = null
+  let catalogUnavailable = false
+
   if (query) {
-    productPage = await searchProducts(query, page)
-    if (isPageOutOfRange(productPage)) {
-      notFound()
+    try {
+      productPage = await searchProducts(query, page)
+      if (isPageOutOfRange(productPage)) notFound()
+    } catch (error) {
+      if (error instanceof StorefrontCatalogError) {
+        catalogUnavailable = true
+      } else {
+        throw error
+      }
     }
   }
 
   return (
-    <main className="page-shell" aria-labelledby="search-title">
-      <header className="page-heading">
-        <p className="eyebrow">Catalog</p>
-        <h1 id="search-title">Search</h1>
-        <p className="lede">Find products by keyword across the current catalog.</p>
+    <main className="mx-auto flex w-full max-w-6xl flex-col gap-6 px-4 py-6" aria-labelledby="search-title">
+      <header className="flex flex-col gap-2">
+        <Badge variant="secondary" className="w-fit bg-accent text-accent-foreground">
+          Αναζήτηση
+        </Badge>
+        <h1 id="search-title" className="text-2xl font-bold tracking-tight sm:text-3xl">
+          Αναζήτηση προϊόντων
+        </h1>
+        <p className="max-w-2xl text-sm text-muted-foreground sm:text-base">
+          Βρείτε προϊόντα με λέξη-κλειδί στον κατάλογο του φαρμακείου.
+        </p>
       </header>
 
-      <form action="/search" method="GET" className="search-form" role="search">
-        <label htmlFor="search-input" className="search-label">
-          Search products
-        </label>
-        <div className="search-form__input-group">
-          <input
+      <form action="/search" method="GET" className="flex flex-col gap-3 sm:flex-row sm:items-end" role="search">
+        <div className="flex min-w-0 flex-1 flex-col gap-1.5">
+          <label htmlFor="search-input" className="text-sm font-medium">
+            Αναζήτηση προϊόντων
+          </label>
+          <Input
             id="search-input"
             type="search"
             name="q"
             defaultValue={query}
-            placeholder="Search products..."
-            className="search-input"
+            placeholder="π.χ. Magnelon, sunscreen…"
             required
+            className="h-11 rounded-xl"
           />
-          <button type="submit" className="button button--primary search-button">
-            Search
-          </button>
         </div>
+        <Button type="submit" className="sm:mb-0.5">
+          Αναζήτηση
+        </Button>
       </form>
 
-      {!query ? (
-        <section className="search-status" aria-live="polite">
-          <p className="search-prompt">Enter a keyword to search the product catalog.</p>
-        </section>
+      {catalogUnavailable ? (
+        <p className="text-sm text-muted-foreground">
+          Η αναζήτηση δεν είναι διαθέσιμη προσωρινά. Δοκιμάστε ξανά σε λίγο.
+        </p>
+      ) : !query ? (
+        <p className="text-sm text-muted-foreground">Πληκτρολογήστε μια λέξη για να δείτε αποτελέσματα.</p>
       ) : productPage && productPage.products.length === 0 ? (
-        <section className="search-status" aria-live="polite">
-          <p className="empty-state">No products found matching &ldquo;{query}&rdquo;.</p>
-        </section>
+        <p className="text-sm text-muted-foreground">
+          Δεν βρέθηκαν προϊόντα για «{query}».
+        </p>
       ) : productPage ? (
-        <section className="search-results" aria-label="Search results">
-          <p className="search-count" aria-live="polite">
-            Found {productPage.count} {productPage.count === 1 ? "product" : "products"} for &ldquo;{query}&rdquo;
+        <section className="flex flex-col gap-4" aria-label="Αποτελέσματα αναζήτησης">
+          <p className="text-sm text-muted-foreground" aria-live="polite">
+            {productPage.count}{" "}
+            {productPage.count === 1 ? "προϊόν" : "προϊόντα"} για «{query}»
           </p>
           <ProductGrid products={productPage.products} />
           <Pagination

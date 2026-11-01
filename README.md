@@ -17,6 +17,10 @@ The platform meets all V1 production-readiness release criteria indexed in [docs
 - [Architecture baseline](docs/architecture.md)
 - [Implementation plan](docs/implementation-plan.md)
 - [Release readiness index](docs/release-readiness-v1.md)
+- [Ponytail audit (V1)](docs/ponytail-audit-v1.md)
+- [Client delivery next steps](docs/client-delivery-next-steps.md)
+- [Demo client: Φαρμακείο Κατερίνα Καγιά](docs/clients/katerina-kayia-pharmacy.md)
+- [Brand identity: Κατερίνα Καγιά](docs/clients/katerina-kayia-brand-identity.md)
 - [Architecture decisions](docs/decisions/README.md)
 
 ## Accepted architecture direction

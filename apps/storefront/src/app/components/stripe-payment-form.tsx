@@ -9,10 +9,13 @@ import {
 import { loadStripe } from "@stripe/stripe-js"
 import { useActionState, useCallback, useEffect, useRef, useState, useTransition } from "react"
 import type { FormEvent } from "react"
+import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { createKeyedPromiseCache } from "./stripe-promise-cache"
 import { CheckoutConfirmationView } from "./checkout-finalize-order"
 
+import { Button } from "@/components/ui/button"
+import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import {
   completeCheckoutAction,
 } from "../actions/checkout-actions"
@@ -49,14 +52,14 @@ const getStripePromise = createKeyedPromiseCache((publishableKey: string) =>
 
 function browserPaymentError(error: { type?: string; code?: string } | undefined): string {
   if (error?.type === "card_error" || error?.code === "card_declined") {
-    return "The payment was declined. Your cart is still available; try another payment method."
+    return "Η πληρωμή απορρίφθηκε. Το καλάθι παραμένει διαθέσιμο· δοκίμασε άλλο τρόπο πληρωμής."
   }
 
   if (error?.type === "validation_error") {
-    return "Check the payment details and try again."
+    return "Έλεγξε τα στοιχεία πληρωμής και δοκίμασε ξανά."
   }
 
-  return "We could not confirm the payment yet. Your cart remains available; please try again."
+  return "Δεν μπορέσαμε να επιβεβαιώσουμε την πληρωμή. Το καλάθι παραμένει διαθέσιμο· δοκίμασε ξανά."
 }
 
 function PaymentFormInner({ payment }: { payment: CheckoutPaymentProjection }) {
@@ -137,7 +140,9 @@ function PaymentFormInner({ payment }: { payment: CheckoutPaymentProjection }) {
 
       if (result.error) {
         paymentAttemptStarted.current = true
-        setBrowserMessage("We could not verify the payment status. Do not submit again while it is being checked.")
+        setBrowserMessage(
+          "Δεν μπορέσαμε να επαληθεύσουμε την κατάσταση πληρωμής. Μην υποβάλεις ξανά όσο ελέγχεται."
+        )
         setPhase("pending")
         return
       }
@@ -154,13 +159,17 @@ function PaymentFormInner({ payment }: { payment: CheckoutPaymentProjection }) {
       }
 
       if (isRecoverablePaymentFailure(undefined, result.paymentIntent?.status)) {
-        setBrowserMessage("The payment was not completed. Your cart is available; check your payment details and try again.")
+        setBrowserMessage(
+          "Η πληρωμή δεν ολοκληρώθηκε. Το καλάθι είναι διαθέσιμο· έλεγξε τα στοιχεία και δοκίμασε ξανά."
+        )
         setPhase("idle")
         return
       }
 
       paymentAttemptStarted.current = true
-      setBrowserMessage("The payment status is still being confirmed. Do not submit again while it is being checked.")
+      setBrowserMessage(
+        "Η κατάσταση πληρωμής επιβεβαιώνεται ακόμα. Μην υποβάλεις ξανά όσο ελέγχεται."
+      )
       setPhase("pending")
     })
 
@@ -234,7 +243,9 @@ function PaymentFormInner({ payment }: { payment: CheckoutPaymentProjection }) {
           unlockPaymentAttempt(paymentAttemptStarted)
           setPhase("idle")
         } else {
-          setBrowserMessage("We could not verify the payment status. Do not submit again while it is being checked.")
+          setBrowserMessage(
+            "Δεν μπορέσαμε να επαληθεύσουμε την κατάσταση πληρωμής. Μην υποβάλεις ξανά όσο ελέγχεται."
+          )
           setPhase("pending")
         }
         return
@@ -243,10 +254,14 @@ function PaymentFormInner({ payment }: { payment: CheckoutPaymentProjection }) {
       if (!isSuccessfulAutomaticPayment(confirmationError, paymentIntentId, paymentIntentStatus)) {
         if (isRecoverablePaymentFailure(undefined, paymentIntentStatus)) {
           unlockPaymentAttempt(paymentAttemptStarted)
-          setBrowserMessage("The payment was not completed. Your cart is available; check your payment details and try again.")
+          setBrowserMessage(
+            "Η πληρωμή δεν ολοκληρώθηκε. Το καλάθι είναι διαθέσιμο· έλεγξε τα στοιχεία και δοκίμασε ξανά."
+          )
           setPhase("idle")
         } else {
-          setBrowserMessage("The payment status is still being confirmed. Do not submit again while it is being checked.")
+          setBrowserMessage(
+            "Η κατάσταση πληρωμής επιβεβαιώνεται ακόμα. Μην υποβάλεις ξανά όσο ελέγχεται."
+          )
           setPhase("pending")
         }
         return
@@ -257,7 +272,9 @@ function PaymentFormInner({ payment }: { payment: CheckoutPaymentProjection }) {
     } catch {
       if (!paymentAlreadySucceeded.current) {
         if (confirmationStarted) {
-          setBrowserMessage("We could not verify the payment status. Do not submit again while it is being checked.")
+          setBrowserMessage(
+            "Δεν μπορέσαμε να επαληθεύσουμε την κατάσταση πληρωμής. Μην υποβάλεις ξανά όσο ελέγχεται."
+          )
           setPhase("pending")
         } else {
           unlockPaymentAttempt(paymentAttemptStarted)
@@ -272,12 +289,19 @@ function PaymentFormInner({ payment }: { payment: CheckoutPaymentProjection }) {
 
   if (sessionState === "error" || sessionState === "canceled") {
     return (
-      <section className="checkout-section" aria-labelledby="payment-title">
-        <h2 id="payment-title">Payment</h2>
-        <p className="checkout-message checkout-message--error" role="alert">
-          This payment session is not available. Refresh checkout to try again.
-        </p>
-      </section>
+      <Card className="shadow-none">
+        <CardHeader>
+          <CardTitle>Πληρωμή</CardTitle>
+        </CardHeader>
+        <CardContent className="text-sm text-destructive" role="alert">
+          Η συνεδρία πληρωμής δεν είναι διαθέσιμη. Ανανέωσε το checkout για να δοκιμάσεις ξανά.
+        </CardContent>
+        <CardFooter>
+          <Button asChild variant="outline">
+            <Link href="/checkout">Ανανέωση</Link>
+          </Button>
+        </CardFooter>
+      </Card>
     )
   }
 
@@ -287,78 +311,97 @@ function PaymentFormInner({ payment }: { payment: CheckoutPaymentProjection }) {
 
   if (needsAuthoritativeRefresh) {
     return (
-      <section className="checkout-section" aria-labelledby="payment-reconcile-title">
-        <h2 id="payment-reconcile-title">Confirming your order</h2>
-        <p className="checkout-message checkout-message--error" role="alert">
-          Payment was received, but order confirmation failed. Do not pay again.
-          Refresh checkout so Medusa can decide whether the order already exists,
-          a new payment session is required, or finalization is still safe.
-        </p>
-        {state.message ? (
-          <p className="checkout-message checkout-message--error" role="alert" aria-live="polite">
-            {state.message}
+      <Card className="shadow-none">
+        <CardHeader>
+          <CardTitle>Επιβεβαίωση παραγγελίας</CardTitle>
+        </CardHeader>
+        <CardContent className="flex flex-col gap-3 text-sm">
+          <p className="text-destructive" role="alert">
+            Η πληρωμή καταχωρήθηκε, αλλά η επιβεβαίωση παραγγελίας απέτυχε. Μην πληρώσεις ξανά.
+            Ανανέωσε το checkout ώστε το σύστημα να αποφασίσει αν η παραγγελία υπάρχει ήδη ή αν
+            χρειάζεται νέα συνεδρία.
           </p>
-        ) : null}
-        {browserMessage ? (
-          <p className="checkout-message checkout-message--error" role="alert">
-            {browserMessage}
-          </p>
-        ) : null}
-        <a className="button-link button-link--secondary" href="/checkout">
-          Refresh checkout
-        </a>
-      </section>
+          {state.message ? (
+            <p className="text-destructive" role="alert" aria-live="polite">
+              {state.message}
+            </p>
+          ) : null}
+          {browserMessage ? (
+            <p className="text-destructive" role="alert">
+              {browserMessage}
+            </p>
+          ) : null}
+        </CardContent>
+        <CardFooter>
+          <Button asChild variant="outline">
+            <Link href="/checkout">Ανανέωση</Link>
+          </Button>
+        </CardFooter>
+      </Card>
     )
   }
 
+  const submitLabel =
+    phase === "confirming"
+      ? "Επιβεβαίωση πληρωμής…"
+      : phase === "pending"
+        ? "Επεξεργασία πληρωμής…"
+        : phase === "completing"
+          ? "Καταχώρηση παραγγελίας…"
+          : "Ασφαλής πληρωμή"
+
   return (
-    <section className="checkout-section" aria-labelledby="payment-title">
-      <h2 id="payment-title">Payment</h2>
-      <p className="checkout-section__intro">
-        Your card details are entered directly into Stripe&apos;s secure Payment Element.
-      </p>
-      <form className="checkout-form" onSubmit={handleSubmit}>
-        <fieldset disabled={paymentFormDisabled}>
-          <legend className="sr-only">Stripe payment details</legend>
-          <PaymentElement />
-        </fieldset>
-        <button className="button-link" type="submit" disabled={paymentFormDisabled || !stripe || !elements}>
-        {phase === "confirming"
-          ? "Confirming payment…"
-          : phase === "pending"
-            ? "Payment processing…"
-          : phase === "completing"
-              ? "Placing order…"
-              : "Pay securely"}
-        </button>
-        {browserMessage ? (
-          <p className="checkout-message checkout-message--error" role="alert">
-            {browserMessage}
-          </p>
-        ) : null}
-        {state.message ? (
-          <p
-            className={`checkout-message${state.status === "error" ? " checkout-message--error" : ""}`}
-            role={state.status === "error" ? "alert" : "status"}
-            aria-live="polite"
-          >
-            {state.message}
-          </p>
-        ) : null}
-      </form>
-    </section>
+    <Card className="shadow-none">
+      <CardHeader>
+        <CardTitle>Πληρωμή</CardTitle>
+      </CardHeader>
+      <CardContent>
+        <p className="mb-4 text-sm text-muted-foreground">
+          Τα στοιχεία κάρτας εισάγονται απευθείας στο ασφαλές Payment Element της Stripe.
+        </p>
+        <form className="flex flex-col gap-4" onSubmit={handleSubmit}>
+          <fieldset disabled={paymentFormDisabled} className="border-0 p-0">
+            <legend className="sr-only">Στοιχεία πληρωμής Stripe</legend>
+            <PaymentElement />
+          </fieldset>
+          <Button type="submit" disabled={paymentFormDisabled || !stripe || !elements}>
+            {submitLabel}
+          </Button>
+          {browserMessage ? (
+            <p className="text-sm text-destructive" role="alert">
+              {browserMessage}
+            </p>
+          ) : null}
+          {state.message ? (
+            <p
+              className={
+                state.status === "error"
+                  ? "text-sm text-destructive"
+                  : "text-sm text-muted-foreground"
+              }
+              role={state.status === "error" ? "alert" : "status"}
+              aria-live="polite"
+            >
+              {state.message}
+            </p>
+          ) : null}
+        </form>
+      </CardContent>
+    </Card>
   )
 }
 
 export function StripePaymentForm({ payment, publishableKey }: StripePaymentFormProps) {
   if (!publishableKey) {
     return (
-      <section className="checkout-section" aria-labelledby="payment-title">
-        <h2 id="payment-title">Payment</h2>
-        <p className="checkout-message checkout-message--error" role="alert">
-          Payment is temporarily unavailable. Your cart remains available; try again later.
-        </p>
-      </section>
+      <Card className="shadow-none">
+        <CardHeader>
+          <CardTitle>Πληρωμή</CardTitle>
+        </CardHeader>
+        <CardContent className="text-sm text-destructive" role="alert">
+          Η πληρωμή δεν είναι διαθέσιμη προσωρινά. Το καλάθι παραμένει διαθέσιμο· δοκίμασε αργότερα.
+        </CardContent>
+      </Card>
     )
   }
 

@@ -15,16 +15,16 @@ import { formatMoney } from "../../lib/money"
 import { AddToCartForm } from "./add-to-cart-form"
 
 const inventoryLabels = {
-  in_stock: "In stock",
-  out_of_stock: "Out of stock",
-  unavailable: "Availability unavailable",
+  in_stock: "Διαθέσιμο",
+  out_of_stock: "Εξαντλημένο",
+  unavailable: "Μη διαθέσιμο",
 } as const
 
 const selectionMessages = {
-  incomplete: "Choose an option for each field to view this variant.",
-  nonexistent: "This option combination is not available. Choose another combination.",
-  ambiguous: "This option combination cannot be uniquely identified and cannot be added to the cart.",
-  malformed: "Variant details are currently unavailable. This item cannot be added to the cart.",
+  incomplete: "Επίλεξε όλες τις επιλογές για να δεις τη διαθεσιμότητα.",
+  nonexistent: "Αυτός ο συνδυασμός δεν υπάρχει. Δοκίμασε άλλη επιλογή.",
+  ambiguous: "Αυτός ο συνδυασμός δεν μπορεί να προστεθεί στο καλάθι.",
+  malformed: "Τα στοιχεία παραλλαγής δεν είναι διαθέσιμα αυτή τη στιγμή.",
 } as const
 
 export function ProductPurchaseForm({ product }: { product: HttpTypes.StoreProduct }) {
@@ -39,67 +39,61 @@ export function ProductPurchaseForm({ product }: { product: HttpTypes.StoreProdu
   const purchasable = isVariantPurchasable(variant)
   const showSelectors = (product.variants?.length ?? 0) > 1 && !automaticVariant && options?.length
   const message = !(product.variants?.length)
-    ? "Variant details are currently unavailable. This item cannot be added to the cart."
+    ? "Τα στοιχεία παραλλαγής δεν είναι διαθέσιμα. Δεν μπορεί να προστεθεί στο καλάθι."
     : variant
-    ? !price
-      ? "This variant has no available price and cannot be added to the cart."
-      : !purchasable
-        ? "This item is not currently available to add to the cart."
-        : "Selected variant is available to add to the cart."
-    : result.status === "resolved"
-      ? "Variant details are currently unavailable."
-      : selectionMessages[result.status]
+      ? !price
+        ? "Δεν υπάρχει διαθέσιμη τιμή για αυτή την παραλλαγή."
+        : !purchasable
+          ? "Το προϊόν δεν είναι διαθέσιμο για προσθήκη στο καλάθι."
+          : "Έτοιμο για προσθήκη στο καλάθι."
+      : result.status === "resolved"
+        ? "Τα στοιχεία παραλλαγής δεν είναι διαθέσιμα."
+        : selectionMessages[result.status]
 
   return (
     <AddToCartForm variantId={purchasable ? variant!.id : null} disabled={!purchasable}>
       {showSelectors ? (
-        <div className="product-options">
+        <div className="flex flex-col gap-3">
           {options!.map((option) => (
-            <div className="product-option" key={option.id}>
-              <label htmlFor={`${id}-${option.id}`}>{option.title}</label>
+            <div className="flex flex-col gap-1.5" key={option.id}>
+              <label className="text-sm font-medium" htmlFor={`${id}-${option.id}`}>
+                {option.title}
+              </label>
               <select
                 id={`${id}-${option.id}`}
                 name={`option-${option.id}`}
                 required
                 value={selections[option.id] ?? ""}
                 aria-describedby={`${id}-selection-status`}
-                onChange={(event) => setSelections((current) => ({
-                  ...current,
-                  [option.id]: event.target.value,
-                }))}
+                className="h-10 rounded-xl border border-input bg-background px-3 text-sm"
+                onChange={(event) =>
+                  setSelections((current) => ({
+                    ...current,
+                    [option.id]: event.target.value,
+                  }))
+                }
               >
-                <option value="">Choose {option.title}</option>
-                {option.values.map((value) => <option key={value} value={value}>{value}</option>)}
+                <option value="">Επίλεξε {option.title}</option>
+                {option.values.map((value) => (
+                  <option key={value} value={value}>
+                    {value}
+                  </option>
+                ))}
               </select>
             </div>
           ))}
         </div>
       ) : null}
 
-      <div aria-live="polite" aria-atomic="true">
-        <section className="product-detail__summary" aria-labelledby={`${id}-summary-title`}>
-          <h2 id={`${id}-summary-title`} className="sr-only">Product summary</h2>
-          <p className="price price--large">
-            {price ? formatMoney(price.amount, price.currencyCode, "en-CY") : "Price unavailable"}
-          </p>
-          <p className={`stock stock--${inventoryStatus}`}>{inventoryLabels[inventoryStatus]}</p>
-        </section>
-        {variant ? (
-          <section className="variant-details" aria-labelledby={`${id}-variant-title`}>
-            <h2 id={`${id}-variant-title`}>Variant</h2>
-            <dl className="facts-list">
-              {variant.title ? <div><dt>Name</dt><dd>{variant.title}</dd></div> : null}
-              {variant.sku ? <div><dt>SKU</dt><dd>{variant.sku}</dd></div> : null}
-              {automaticVariant && options?.map((option) => (
-                <div key={option.id}>
-                  <dt>{option.title}</dt>
-                  <dd>{variant.options?.find((value) => value.option_id === option.id)?.value}</dd>
-                </div>
-              ))}
-            </dl>
-          </section>
-        ) : null}
-        <p id={`${id}-selection-status`} className={`mutation-message${purchasable ? "" : " mutation-message--error"}`}>
+      <div aria-live="polite" aria-atomic="true" className="flex flex-col gap-2">
+        <p className="text-2xl font-bold tracking-tight">
+          {price ? formatMoney(price.amount, price.currencyCode, "el-CY") : "Τιμή μη διαθέσιμη"}
+        </p>
+        <p className="text-sm text-muted-foreground">{inventoryLabels[inventoryStatus]}</p>
+        <p
+          id={`${id}-selection-status`}
+          className={`text-sm ${purchasable ? "text-muted-foreground" : "text-destructive"}`}
+        >
           {message}
         </p>
       </div>
